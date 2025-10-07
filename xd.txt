@@ -1,0 +1,204 @@
+
+      background:
+        radial-gradient(circle, rgba(255, 255, 255, 0.8) 0%, rgba(255,255,255,0) 80%),
+        repeating-conic-gradient(
+        from 0deg,
+          #90ADDC 0deg 15deg,
+          #6992C8 15deg 30deg
+      );
+    background-blend-mode: screen;
+    background-repeat: no-repeat;
+
+
+<script>
+function toggleSubscription() {
+    const btn = document.querySelector('.subscribe-button');
+    if (!btn) return;
+
+    const channelId = btn.getAttribute('data-channel-id');
+    const currentAction = btn.getAttribute('data-action');
+    
+    // Define a ação inversa para a próxima vez
+    const nextAction = (currentAction === 'subscribe') ? 'unsubscribe' : 'subscribe';
+    
+    // Desabilita o botão para evitar cliques duplos
+    btn.disabled = true;
+
+    fetch('toggle_subscription.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `channel_id=${channelId}&action=${currentAction}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 1. Atualiza o atributo data-action do botão
+            btn.setAttribute('data-action', nextAction);
+
+            // 2. Atualiza classes do botão
+            btn.classList.remove(currentAction === 'subscribe' ? 'not-subscribed' : 'subscribed');
+            btn.classList.add(data.new_status);
+            
+            const textSpan = btn.querySelector('.button-text');
+            
+            // Lógica para alternar texto e ícone (AGORA EM PORTUGUÊS)
+            if (data.new_status === 'subscribed') {
+                // STATUS: INSCRITO
+                textSpan.textContent = 'Inscrito';
+                // Remove o ícone se ele existir
+                const icon = btn.querySelector('img');
+                if (icon) icon.remove(); 
+            } else {
+                // STATUS: NÃO INSCRITO (Inscrever-se)
+                textSpan.textContent = 'Inscrever-se';
+                // Adiciona o ícone novamente, se ele não estiver lá
+                if (!btn.querySelector('img')) {
+                    const newIcon = document.createElement('img');
+                    newIcon.src = "https://cdn-icons-png.flaticon.com/512/32/32339.png";
+                    newIcon.alt = "Plus Icon";
+                    // Usa 'prepend' para colocar a imagem antes do texto
+                    btn.prepend(newIcon); 
+                }
+            }
+            
+            // 3. Atualiza a contagem de inscritos na página
+            const countDiv = document.querySelector('.channel-subs-number');
+            if (countDiv) {
+                countDiv.textContent = data.new_count;
+            }
+
+        } else {
+            alert(data.message || 'Erro ao processar sua solicitação.');
+        }
+    })
+    .catch(error => {
+        console.error('Erro na chamada AJAX:', error);
+        alert('Erro de rede. Tente novamente.');
+    })
+    .finally(() => {
+        // Habilita o botão novamente
+        btn.disabled = false;
+    });
+}
+</script>
+
+
+
+
+
+
+      <div class="channel-stuffs">
+        <div class="channel-name"><?php echo htmlspecialchars($channel_info['username']); ?></div>
+        <button class="subscribe-button">
+          <img src="https://cdn-icons-png.flaticon.com/512/32/32339.png" alt="Plus Icon">
+        Subscribe
+          </button>
+        </div>
+
+
+
+        <div class="principal-video">
+          <div class="video-card">
+          <img src="test/thumbnail.png" alt="Video Thumbnail">
+          <div class="video-info">
+            <p class="video-title">TESTE #1</p>
+            <span class="video-duration">3:34</span>
+            <p class="video-views">1,276,571 Views</p>
+
+
+
+
+
+
+
+
+
+        /* ============================================== */
+        /* ESTILO DO PLAYER CLÁSSICO (Mantido) */
+        /* ============================================== */
+        video::-webkit-media-controls-panel {
+            -webkit-box-align: end !important; 
+            align-items: flex-end !important;
+            
+            background: linear-gradient(to top, #E0E0E0, #F5F5F5 50%, #E0E0E0);
+            color: #333;
+            border-top: 1px solid #AAA;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.2);
+            height: 40px;
+            
+            bottom: 0;
+            position: absolute;
+            width: 100%;
+        }
+
+        video::-webkit-media-controls-timeline {
+            background-color: #FFF; 
+            border: 1px solid #AAA;
+            border-radius: 5px;
+            height: 10px;
+            margin: 0 5px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+            -webkit-appearance: none;
+            overflow: hidden;
+        }
+        
+        video::-webkit-media-controls-timeline::-webkit-slider-runnable-track {
+            background-color: #E0E0E0; 
+        }
+
+        video::-webkit-media-controls-timeline::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: linear-gradient(to bottom, #FFF, #DDD);
+            border: 1px solid #666;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+            margin-top: -3px;
+            box-shadow: -100vw 0 0 100vw #CC0000;
+        }
+        
+        video::-webkit-media-controls-play-button {
+            background: linear-gradient(to bottom, #FF6666 0%, #CC0000 100%);
+            border: 1px solid #990000;
+            border-radius: 3px;
+            color: #FFF;
+            padding: 0 5px;
+            box-shadow: 1px 1px 2px rgba(0,0,0,0.4);
+        }
+
+
+
+
+
+
+
+
+
+
+// =================================================================
+// 3. PROCESSAMENTO DO BOTÃO SUBSCRIBE/UNSUBSCRIBE (Ação de POST)
+// =================================================================
+if ($can_subscribe && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['subscribe_action'])) {
+    
+    if ($is_subscribed) {
+        // Ação: Cancelar Inscrição
+        $stmt_sub = $pdo->prepare("DELETE FROM subscribers WHERE channel_id = ? AND subscriber_id = ?");
+    } else {
+        // Ação: Inscrever-se
+        $stmt_sub = $pdo->prepare("INSERT INTO subscribers (channel_id, subscriber_id) VALUES (?, ?)");
+    }
+    
+    try {
+        $stmt_sub->execute([$channel_user_id, $logged_user_id]);
+    } catch (PDOException $e) {
+        // Em caso de erro na execução do INSERT/DELETE, você pode logar ou exibir uma mensagem
+        // echo "Erro ao processar inscrição: " . $e->getMessage(); 
+    }
+    
+    // Redireciona para evitar reenvio do formulário (Post/Redirect/Get)
+    header("Location: youraccount2009.php?user_id=" . $channel_user_id);
+    exit;
+}

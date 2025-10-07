@@ -1,0 +1,10 @@
+# Garante que o Apache envie o cabeçalho Accept-Ranges: bytes
+<IfModule mod_headers>
+    Header set Accept-Ranges bytes
+</IfModule>
+
+# Algumas configurações para lidar com vídeos em MP4
+<FilesMatch "\.(mp4|mov|mkv)$">
+    ForceType video/mp4
+    Header set Content-Disposition "inline"
+</FilesMatch>

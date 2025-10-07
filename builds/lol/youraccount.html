@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>YouTube 2012 - Your Account</title>
+  <script src="https://unpkg.com/@ruffle-rs/ruffle"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      overflow-x: hidden;
+      margin: 0;
+      height: 120vh;
+      background:
+        radial-gradient(circle, rgba(255, 255, 255, 0.8) 0%, rgba(255,255,255,0) 80%),
+        repeating-conic-gradient(
+        from 0deg,
+          #90ADDC 0deg 15deg,
+          #6992C8 15deg 30deg
+      );
+    background-blend-mode: screen;
+    background-repeat: no-repeat;
+    }
+  
+      /*https://cdn.wallpapersafari.com/16/96/a6fm9R.jpg dolan*/
+      /*https://static.tumblr.com/cec677d2ff2597eec2ee11b39760778d/5rcs1cr/taVmvwz1m/tumblr_static_weegee_desktop_1920x1080_wallpaper-394304.jpg weegee*/
+
+    .bg {
+      position: absolute;
+      top: 0px;
+      left: 0px;
+    }
+
+    .bg img {
+      position: absolute;
+    }
+
+    header {
+      background: linear-gradient(to bottom, #ffffff, #dddddd);
+      border-bottom: 1px solid #aaa;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .header-buttons {
+      display: flex;
+      gap: 10px;
+    }
+
+    .header-buttons button {
+      padding: 6px 12px;
+      border: 1px solid #ccc;
+      background: linear-gradient(to bottom, #ffffff, #e6e6e6);
+      cursor: pointer;
+      border-radius: 2px;
+    }
+
+    .sections-buttons button {
+      position: absolute;
+      top: 160px;
+      left: 500px;
+      font-family: Arial, sans-serif;
+      padding: 8px 22px;
+      border: 1px solid #585858;
+      background: linear-gradient(to bottom, #4b4b4b, #303030, #2b2b2b);
+      cursor: pointer;
+      color: #cccccc;
+      border-radius: 1px;
+    }
+
+    .sections-buttons {
+      display: flex;
+      gap: 10px;
+    }
+  
+    .sections-buttons:hover {
+      border: 1px solid #4171b4;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logo img {
+      height: 30px;
+    }
+
+    main {
+      display: flex;
+      gap: 16px;
+      margin: 16px;
+    }
+
+    .upper-section-ytg-box {
+      position: absolute;
+      top: 70px;
+      left: 500px;
+      width: 900px;
+      height: 80px;
+      background: linear-gradient(to bottom, #414141,#272727);
+      border: 1px solid #333;
+      padding: 8px;
+      color: white;
+      border-radius: 10px;
+    }
+    
+    .sections-ytg-box {
+      position: absolute;
+      top: 160px;
+      left: 500px;
+      width: 900px;
+      background: linear-gradient(to bottom, #595959, #4F4F4F,#343434);
+      border: 1px solid #333;
+      padding: 8px;
+      height: 15px;
+      border-radius: 0px;
+    }
+
+    .left-section-ytg-box {
+      position: absolute;
+      top: 98px;
+      left: 810px;
+      width: 590px;
+      height: 980px;
+      background: linear-gradient(to bottom, #b3b3b3, #c5c5c5, #c5c5c5, #E6E6E6);
+      background: linear-gradient(to right, #000000,  #c5c5c5, #c5c5c5);
+      border: 1px solid #cfcfcf;
+      padding: 8px;
+      border-radius: 10px;
+    }
+
+    .quadradop {
+      position: relative;
+      top: 15px;
+      left: 468px;
+      width: 590px;
+      height: 1000px;
+      background: linear-gradient(to bottom, #E6E6E6, #c5c5c5, #c5c5c5, #E6E6E6);
+      border: 1px solid #cfcfcf;
+      padding: 8px;
+      border-radius: 10px;
+    }
+
+    .videos {
+      display: flex;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+      padding-bottom: 8px
+    }
+
+
+    .video-card {
+      position: relative;
+      width: 220px;
+      height: 150px;
+      background: linear-gradient(to bottom,#595959, #292929, #3f3f3f,#292929);
+      border-radius: 0%;
+      border: 1px solid #ddd;
+      overflow: hidden;
+      box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3);
+      transition: 0.1s ease-in-out;
+    }
+
+    .video-card img {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .video-title {
+      position: relative;
+      left: 6px;
+      top: -4px;
+      font-family: Arial, sans-serif;
+      font-size: 7px;
+      font-weight: normal;
+      margin: 0 0 1px;
+      color: #ccc;
+      text-decoration: none;
+      display: inline-block;
+      cursor: pointer;
+      transition: 0.2s ease-in-out;
+    }
+
+
+    .video-card:hover {
+      border: 1px solid #3B6831;
+    }
+
+    .video-card:hover .video-title {
+      color: #4788d7;
+    }
+
+    .video-views {
+      position: relative;
+      left: 6px;
+      top: -6px;
+      margin: 0 0 1px;
+      font-size: 4px;
+      color: #666;
+    }
+
+    .video-duration {
+      position: absolute;
+      bottom: 31px;
+      right: 2px;
+      background: linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0.4));
+      color: white;
+      font-size: 5px;
+      font-weight: normal;
+      padding: 2px 4px;
+      border-radius: 2px;
+      user-select: none;
+    }
+
+    .principal-video {
+      transform: scale(2.65);
+      position: absolute;
+      top: 285px;
+      left: 592px;
+      width: 100px;
+      height: 100px;
+    }
+
+    .channel-subs-number {
+      position: absolute;
+      bottom: 850px;
+      right: 663px;
+      overflow: hidden;
+      font-size: 18px;
+      color: #808080;
+      font-weight: normal;
+      transform: translate(50%, 50%);
+    }
+
+    .channel-subs-text {
+      position: absolute;
+      bottom: 829px;
+      right: 636px;
+      max-width: 9h;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      flex-shrink: 0;
+      overflow: hidden;
+      font-size: 10px;
+      color: #808080;
+      font-weight: normal;
+    }
+
+    .channel-vis-number {
+      position: absolute;
+      bottom: 850px;
+      right: 563px;
+      overflow: hidden;
+      font-size: 18px;
+      color: #808080;
+      font-weight: normal;
+      transform: translate(50%, 50%);
+    }
+
+    .channel-vis-text {
+      position: absolute;
+      bottom: 829px;
+      right: 536px;
+      max-width: 9h;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      flex-shrink: 0;
+      overflow: hidden;
+      font-size: 10px;
+      color: #808080;
+      font-weight: normal;
+    }
+
+    .subscribe-button {
+      display: flex;
+      background: linear-gradient(to bottom, #ffffff, #dcdcdc);
+      border: 1px solid #aaa;
+      border-radius: 50px 8px 8px 50px;
+      padding: 5px 15px;
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      font-weight: bold;
+      color: #333;
+      box-shadow: 0px 1px 2px rgba(0,0,0,0.3);
+      cursor: pointer;
+    }
+
+    .subscribe-button:hover {
+      background: linear-gradient(to bottom, #74BC64, #3B6831);
+      border: 1px solid #568d4a;
+    }
+
+    .subscribe-button img {
+      width: 13px;
+      height: 13px;
+      margin-right: 8px;
+    }
+
+    .profile-avatar {
+      position: absolute;
+      top: 87px;
+      left: 520px;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      border: 3px solid #ddd;
+      object-fit: cover;
+      box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .channel-name {
+      font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+      max-width: 44ch;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex-shrink: 0;
+      display: inline;
+      font-size: 24px;
+      color: #ccc;
+      font-weight: normal;
+    }
+
+    .channel-about-text {
+      position: absolute;
+      top: 220px;
+      left: 1140px;
+      flex-shrink: 0;
+      display: inline;
+      font-size: 14px;
+      color: #000000;
+      font-weight: normal;
+    }
+
+    .channel-about {
+      position: absolute;
+      top: 246px;
+      left: 1140px;
+      flex-shrink: 0;
+      display: inline;
+      font-size: 12px;
+      color: #808080;
+      font-weight: normal;
+    }
+
+    .channel-stuffs {
+      position: absolute;
+      top: 102px;
+      left: 590px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+  }
+
+    .search-bar-yt {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      max-width: 500px;
+    }
+
+    .search-bar-yt input {
+      position: relative;
+      top: 101px;
+      left: 350px;
+      background: linear-gradient(to bottom, #202020, #323232);
+      width: 250px;
+      height: 10px;
+      padding: 6px;
+      border: 1px solid #585858;
+      border-right: none;
+      border-radius: 2px 0 0 2px;
+      color: white;
+    }
+
+    .search-bar-yt input:focus {
+      outline: none;
+    }
+
+    .ytc-container {
+      position: relative;
+      top: 5px;
+    }
+
+    footer {
+      background: linear-gradient(to bottom, #f1f1f1, #d3d3d3);
+      border-top: 1px solid #ccc;
+      padding: 16px;
+      text-align: center;
+      font-size: 12px;
+      color: #555;
+      margin-top: 50px;
+    }
+
+    .footer-links a {
+      color: #065fd4;
+      text-decoration: none;
+    }
+
+    .footer-links a:hover {
+      text-decoration: underline;
+    }
+
+  </style>
+</head>
+<body>
+
+  <body>
+    <img class="bg" src="test/WallpaperPreset1.png" alt="background">
+  </body>
+
+  <header>
+    <div class="logo">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/1/1f/Logo_of_YouTube_%282005-2006%29.svg" alt="YouTube Logo">
+    </div>
+    <div class="header-buttons">
+      <button>Back</button>
+    </div>
+  </header> 
+
+  <main>
+    <div class="ytc-container"></div>
+    </div>
+      </div>
+      <div class="left-section-ytg-box"></div>
+      <div class="quadradop"></div>
+      <div class="upper-section-ytg-box"></div>
+      <div class="sections-ytg-box"></div>
+      <div class="channel-about-text">About YahGo</div>
+      <div class="channel-about">Fuck You :D /dance</div>
+      <div class="channel-subs-number">6,870</div>
+      <div class="channel-subs-text">subscribers</div>
+      <div class="channel-vis-number">1,209,236</div>
+      <div class="channel-vis-text">video views</div>
+      <img src="test/FOTO YAGGOZIT0.png" alt="Channel Img" class="profile-avatar">
+      <div class="search-bar-yt">
+      <input type="text" placeholder="Search">
+      </div>
+      <div class="sections-buttons">
+        <button class="sections-buttons">Featured</button></div>
+      <div class="channel-stuffs">
+        <div class="channel-name">YahGo!</div>
+        <button class="subscribe-button">
+          <img src="https://cdn-icons-png.flaticon.com/512/32/32339.png" alt="Plus Icon">
+        Subscribe
+        </button>
+      </div>
+      <div class="principal-video">
+        <div class="video-card">
+        <img src="https://i.ytimg.com/vi/SGcstfDJNLY/hqdefault.jpg" alt="Video Thumbnail">
+        <div class="video-info">
+          <p class="video-title">YTPMV - Seu Madruga Will Go On</p>
+          <span class="video-duration">3:34</span>
+          <p class="video-views">1,276,571 Views</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="footer-content">
+    <p>&copy; 2012 YouPoop™ - All rights reserved.</p>
+    <nav class="footer-links">
+      <a href="#">About</a> |
+      <a href="#">Press</a> |
+      <a href="#">Copyright</a> |
+      <a href="#">Creators</a> |
+      <a href="#">Advertise</a> |
+      <a href="#">Developers</a>
+    </nav>
+  </div>
+</footer>
+
+</body>
+</html>
