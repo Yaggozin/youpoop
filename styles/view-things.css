@@ -1,0 +1,115 @@
+.videos-selection {
+    display: flex;
+    align-items: center;
+    background-color: #ffffff;
+    padding: 10px 0;
+    border: 1px solid #ccc;
+    overflow: hidden;
+    max-width: 100%;
+    position: relative;
+}
+
+.videos-selection::before,
+.videos-selection::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 40px;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.videos-selection::before {
+    left: 0;
+    background: #fffffff2;
+    border-right: 1px solid #f1f1f1;
+}
+
+.videos-selection::after {
+    right: 0;
+    background: #fffffff2;
+    border-left: 1px solid #f1f1f1;
+}
+
+.nav-arrow {
+    background: #f1f1f1;
+    border: 1px solid #ccc;
+    color: #666;
+    padding: 20px 5px;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 0;
+    margin: 0 5px;
+    height: 100px;
+    position: absolute;
+    z-index: 30;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.left-arrow {
+    left: 0;
+}
+
+.right-arrow {
+    right: 0;
+}
+
+/* .nav-arrow {
+    background: #f1f1f1;
+    border: 1px solid #ccc;
+    color: #666;
+    padding: 20px 5px;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 0;
+    margin: 0 5px;
+    height: 100px;
+    z-index: 20;
+    position: relative;
+} */
+
+.nav-arrow:hover {
+    background-color: #e0e0e0;
+}
+
+.nav-arrow:disabled {
+    cursor: default;
+    opacity: 0.5;
+}
+
+.videos-list {
+    position: relative;
+    display: flex;
+    gap: 10px;
+    overflow: hidden;
+    padding: 0 5px;
+    /*transition: left 0.2s ease-out;*/
+    transition: left 0.3s ease-in-out;
+    width: auto;
+    flex-wrap: nowrap;
+    min-width: 830px;
+}
+
+.video-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    padding: 5px;
+    border: 1px solid transparent;
+    position: relative;
+    width: 130px;
+    flex-shrink: 0;
+}
+
+.video-card.active {
+    border: 1px solid #4d90fe;
+    background-color: #f5f5f5;
+}
+
+.video-card:hover {
+    background-color: #f9f9f9;
+}

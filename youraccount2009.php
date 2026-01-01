@@ -1,189 +1,116 @@
 <?php
-// channel.php
+// youraccount2009.php - Página do Canal
 session_start();
 // **ATENÇÃO:** Garanta que o caminho para db_connect.php está correto
 require 'db_connect.php'; 
 
 // ---------------------------------------------
-// 0. ID DO USUÁRIO LOGADO (NOVO)
+// 1. VARIÁVEIS DE USUÁRIO E ESTADO
 // ---------------------------------------------
-// Pega o ID do usuário que está logado. Se não estiver, define como NULL.
-$logged_in_user_id = $_SESSION['user_id'] ?? null; 
-
-
-// ---------------------------------------------
-// 1. OBTÉM O ID DO CANAL
-// ---------------------------------------------
+// ID do usuário logado (usado para SUBSCRIBE e CUSTOMIZAR)
+$logged_user_id = $_SESSION['user_id'] ?? null; 
+// ID do canal que está sendo visualizado (obtido da URL)
 $channel_user_id = $_GET['u'] ?? null;
 
+// VARIÁVEL NOVA: Define se deve mostrar todos os uploads ou apenas 6
+$show_all = isset($_GET['view']) && $_GET['view'] === 'all'; 
+
+// Verifica a validade do ID
 if (!$channel_user_id || !is_numeric($channel_user_id)) {
-    // Redireciona ou exibe erro se o ID for inválido
     die("Canal não encontrado ou ID inválido.");
 }
 
+// Verifica se o usuário logado PODE se inscrever no canal (não é o próprio canal)
+$can_subscribe = ($logged_user_id !== null && $logged_user_id != $channel_user_id);
+
 
 // ---------------------------------------------
-// 2. BUSCA DADOS DO USUÁRIO (Canal)
+// 2. BUSCA DADOS BÁSICOS DO CANAL
 // ---------------------------------------------
 try {
-    // Busca os dados do canal
-    $stmt_user = $pdo->prepare("SELECT id, username, profile_icon_path, channel_slogan, channel_banner_path FROM users WHERE id = ?");
-    $stmt_user->execute([$channel_user_id]);
-    $channel_info = $stmt_user->fetch(PDO::FETCH_ASSOC);
-    
-    // Verifica se o canal realmente existe
+    $stmt_channel = $pdo->prepare("SELECT id, username, profile_icon_path, channel_slogan, channel_banner_path FROM users WHERE id = ?");
+    $stmt_channel->execute([$channel_user_id]);
+    $channel_info = $stmt_channel->fetch(PDO::FETCH_ASSOC);
+
     if (!$channel_info) {
-        die("Canal não encontrado.");
-    }
-
-    $custom_banner_url = $channel_info['channel_banner_path'] ?? null;
-    $body_background_style = "";
-
-    // 1. Definição do Gradiente padrão
-    $gradient_css = "
-        background: 
-            radial-gradient(circle, rgba(255, 255, 255, 0.8) 0%, rgba(255,255,255,0) 80%),
-            repeating-conic-gradient(
-                from 0deg,
-                #90ADDC 0deg 15deg,
-                #6992C8 15deg 30deg
-            );
-        background-blend-mode: screen;
-        background-repeat: no-repeat;
-    ";
-
-    // 2. Decide qual background aplicar ao body
-    if (!empty($custom_banner_url)) {
-        $body_background_style = "
-            background-image: url('" . htmlspecialchars($custom_banner_url) . "'); 
-            background-size: cover; 
-            background-position: center top; 
-            background-attachment: fixed;
-            background-repeat: no-repeat;
-        ";
-    } else {
-        $body_background_style = $gradient_css;
+        die("Erro: Canal não encontrado.");
     }
     
-    // Define o caminho do ícone para o HTML
+    $channel_username = htmlspecialchars($channel_info['username'] ?? 'Usuário Desconhecido');
+    $channel_slogan = htmlspecialchars($channel_info['channel_slogan'] ?? 'Este canal não tem slogan.');
+
+    // Lógica do Avatar Padrão
+    $profile_icon_path = htmlspecialchars($channel_info['profile_icon_path'] ?? ''); 
     $default_icon = 'images/youpoophd/account/avatar/avatar_1.png';
-    $icon_path = ($channel_info['profile_icon_path'] && file_exists($channel_info['profile_icon_path'])) 
-                ? $channel_info['profile_icon_path'] 
-                : $default_icon;
-    } catch (PDOException $e) { 
-        // Em caso de erro na conexão ou na consulta SQL, exibe uma mensagem de erro.
-        die("Erro interno ao carregar dados do canal: " . $e->getMessage()); 
+    if (empty($profile_icon_path) || (!empty($profile_icon_path) && !file_exists($profile_icon_path))) {
+         $profile_icon_path = $default_icon; 
     }
+    
+    // Lógica do Banner
+    $channel_banner_path = htmlspecialchars($channel_info['channel_banner_path'] ?? 'uploads/banners/default_banner.jpg');
+    
+} catch (PDOException $e) {
+    die("Erro interno ao carregar dados do canal: " . $e->getMessage()); 
+}
 
 
 // ---------------------------------------------
-// 3. CONTA O NÚMERO DE INSCRITOS
+// 3. CONTAGEM DE INSCRITOS
 // ---------------------------------------------
-$subscriber_count = 0;
-
+$subscriber_count = 0; 
 try {
-    $stmt_subs = $pdo->prepare("SELECT COUNT(*) AS total_subscribers FROM subscriptions WHERE channel_id = ?");
+    // Assumindo que a tabela é 'subscriptions' e a coluna do canal é 'channel_id'
+    $stmt_subs = $pdo->prepare("SELECT COUNT(*) FROM subscriptions WHERE channel_id = ?");
     $stmt_subs->execute([$channel_user_id]);
-    $subscriber_count = (int)$stmt_subs->fetchColumn(); // Usa fetchColumn para pegar só o valor
+    $subscriber_count = $stmt_subs->fetchColumn();
 } catch (PDOException $e) {
     error_log("Subscription Count Error: " . $e->getMessage());
 }
 
 
 // ---------------------------------------------
-// 4. CONTA O NÚMERO DE INSCRITOS
+// 4. VERIFICA STATUS DE INSCRIÇÃO
 // ---------------------------------------------
-$subscriber_count = 0;
-
-try {
-    $stmt_subs = $pdo->prepare("SELECT COUNT(*) AS total_subscribers FROM subscriptions WHERE channel_id = ?");
-    $stmt_subs->execute([$channel_user_id]);
-    $subscriber_count = (int)$stmt_subs->fetchColumn(); // Usa fetchColumn para pegar só o valor
-} catch (PDOException $e) {
-    error_log("Subscription Count Error: " . $e->getMessage());
+$is_subscribed = false;
+if ($can_subscribe) {
+    try {
+        $stmt_check_sub = $pdo->prepare("SELECT COUNT(*) FROM subscriptions WHERE channel_id = ? AND user_id = ?");
+        $stmt_check_sub->execute([$channel_user_id, $logged_user_id]);
+        $is_subscribed = $stmt_check_sub->fetchColumn() > 0;
+    } catch (PDOException $e) {
+        error_log("Subscription Check Error: " . $e->getMessage());
+    }
 }
 
 
-// =================================================================
-// 3. PROCESSAMENTO DO BOTÃO SUBSCRIBE/UNSUBSCRIBE (Ação de POST)
-// =================================================================
+// ---------------------------------------------
+// 5. PROCESSAMENTO DO BOTÃO SUBSCRIBE/UNSUBSCRIBE (Ação de POST)
+// ---------------------------------------------
 if ($can_subscribe && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['subscribe_action'])) {
     
     if ($is_subscribed) {
         // Ação: Cancelar Inscrição
-        $stmt_sub = $pdo->prepare("DELETE FROM subscribers WHERE channel_id = ? AND subscriber_id = ?");
+        $stmt_sub = $pdo->prepare("DELETE FROM subscriptions WHERE channel_id = ? AND user_id = ?");
     } else {
         // Ação: Inscrever-se
-        $stmt_sub = $pdo->prepare("INSERT INTO subscribers (channel_id, subscriber_id) VALUES (?, ?)");
+        $stmt_sub = $pdo->prepare("INSERT INTO subscriptions (channel_id, user_id) VALUES (?, ?)");
     }
     
     try {
         $stmt_sub->execute([$channel_user_id, $logged_user_id]);
     } catch (PDOException $e) {
-        // Em caso de erro na execução do INSERT/DELETE, você pode logar ou exibir uma mensagem
-        // echo "Erro ao processar inscrição: " . $e->getMessage(); 
+        error_log("Subscription Action Error: " . $e->getMessage()); 
     }
     
     // Redireciona para evitar reenvio do formulário (Post/Redirect/Get)
-    header("Location: youraccount2009.php?user_id=" . $channel_user_id);
+    header("Location: youraccount2009.php?u=" . $channel_user_id);
     exit;
 }
 
-// =================================================================
-// 2. BUSCA DO STATUS DE INSCRIÇÃO ATUAL
-// =================================================================
-$is_subscribed = false;
-if ($can_subscribe) {
-    try {
-        $stmt_check_sub = $pdo->prepare("SELECT COUNT(*) FROM subscribers WHERE channel_id = ? AND subscriber_id = ?");
-        $stmt_check_sub->execute([$channel_user_id, $logged_user_id]);
-        $is_subscribed = $stmt_check_sub->fetchColumn() > 0;
-    } catch (PDOException $e) {
-        // Ignora
-    }
-}
 
-
-// =================================================================
-// 4. BUSCA DE INFORMAÇÕES BÁSICAS DO CANAL
-// =================================================================
-$stmt_channel = $pdo->prepare("SELECT username, channel_slogan, profile_icon_path, channel_banner_path FROM users WHERE id = ?");
-$stmt_channel->execute([$channel_user_id]);
-$channel_info = $stmt_channel->fetch(PDO::FETCH_ASSOC);
-
-if (!$channel_info) {
-    die("Erro: Canal não encontrado.");
-}
-
-$channel_username = htmlspecialchars($channel_info['username'] ?? 'Usuário Desconhecido');
-$channel_slogan = htmlspecialchars($channel_info['channel_slogan'] ?? 'Este canal não tem slogan.');
-
-// Lógica do Avatar Padrão
-$profile_icon_path = htmlspecialchars($channel_info['profile_icon_path'] ?? ''); 
-if (empty($profile_icon_path) || (!empty($profile_icon_path) && !file_exists($profile_icon_path))) {
-     // Usa o caminho padrão solicitado se o campo estiver vazio OU o arquivo não existir
-     $profile_icon_path = 'images/youpoophd/account/avatar/avatar_1.png'; 
-}
-
-$channel_banner_path = htmlspecialchars($channel_info['channel_banner_path'] ?? 'uploads/banners/default_banner.jpg'); 
-
-
-// =================================================================
-// 5. OBTENDO CONTAGEM REAL DE INSCRITOS
-// =================================================================
-$subscriber_count = 0; 
-try {
-    $stmt_subs = $pdo->prepare("SELECT COUNT(*) FROM subscribers WHERE channel_id = ?");
-    $stmt_subs->execute([$channel_user_id]);
-    $subscriber_count = $stmt_subs->fetchColumn();
-} catch (PDOException $e) {
-    // Ignora
-}
-
-
-// =================================================================
+// ---------------------------------------------
 // 6. LÓGICA PARA BUSCAR O VÍDEO DE DESTAQUE (O MAIS RECENTE)
-// =================================================================
+// ---------------------------------------------
 $featured_video = null;
 $stmt_video = $pdo->prepare("
     SELECT id, title, description, thumbnail_path, upload_date, duration, views FROM videos 
@@ -197,9 +124,9 @@ $featured_video = $stmt_video->fetch(PDO::FETCH_ASSOC);
 $featured_video_id = $featured_video['id'] ?? null; 
 
 
-// =================================================================
+// ---------------------------------------------
 // 7. OBTENDO COMENTÁRIOS REAIS DO VÍDEO DE DESTAQUE
-// =================================================================
+// ---------------------------------------------
 $featured_comments = [];
 
 if ($featured_video_id) {
@@ -215,21 +142,23 @@ if ($featured_video_id) {
         $stmt_comments->execute([$featured_video_id]);
         $featured_comments = $stmt_comments->fetchAll(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
-        // Ignora
+        error_log("Comments Error: " . $e->getMessage());
     }
 }
 
 
-// =================================================================
+// ---------------------------------------------
 // 8. LÓGICA para buscar a lista dos últimos vídeos (Uploads)
-// =================================================================
+// ---------------------------------------------
 $uploads = [];
+$limit_clause = $show_all ? "" : "LIMIT 6"; // Aplica LIMIT 6 se não for "Ver Todos"
+
 $stmt_uploads = $pdo->prepare("
     SELECT id, title, duration, views, upload_date, thumbnail_path FROM videos 
     WHERE user_id = ? 
     AND visibility = 'public' 
     ORDER BY upload_date DESC 
-    LIMIT 6
+    {$limit_clause}
 ");
 $stmt_uploads->execute([$channel_user_id]);
 $uploads = $stmt_uploads->fetchAll(PDO::FETCH_ASSOC);
@@ -253,7 +182,7 @@ $uploads = $stmt_uploads->fetchAll(PDO::FETCH_ASSOC);
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #000000; /* Fundo Preto Clássico */
+            background-color: #eee; /* Fundo Preto Clássico */
             color: #333;
         }
 
@@ -277,8 +206,6 @@ $uploads = $stmt_uploads->fetchAll(PDO::FETCH_ASSOC);
             width: 960px; 
             margin: 20px auto;
             background-color: #FFFFFF; /* Conteúdo em Branco */
-            border: 5px solid #000000; /* Borda Grossa Preta */
-            box-shadow: 10px 10px 0px rgba(255, 0, 0, 0.5); /* Sombra 3D Vermelha */
         }
         
         /* Banner do Canal */
@@ -502,13 +429,6 @@ $uploads = $stmt_uploads->fetchAll(PDO::FETCH_ASSOC);
 </head>
 <body>
 
-<div class="top-bar">
-    <a href="index.php">Página Inicial</a> | 
-    <a href="dashboard.php">Meu Dashboard</a> |
-    <a href="#">Ajuda</a> |
-    <a href="#">Sair</a>
-</div>
-
 <div class="channel-container">
     
     <div class="channel-banner">
@@ -517,23 +437,22 @@ $uploads = $stmt_uploads->fetchAll(PDO::FETCH_ASSOC);
 
     <div class="channel-nav">
         <div>
-            <a href="#" class="active">Featured (Destaque)</a>
-            <a href="#">Videos</a>
-            <a href="#">Playlists</a>
+            <a href="youraccount2009.php?u=<?php echo $channel_user_id; ?>" class="active">Featured (Destaque)</a>
+            <a href="youraccount2009.php?u=<?php echo $channel_user_id; ?>&view=all">Videos</a> <a href="#">Playlists</a>
             <a href="#">About</a>
         </div>
         
         <?php if ($can_subscribe): // Botão SUBSCRIBE/UNSUBSCRIBE se o usuário estiver logado e não for o próprio canal ?>
-            <form method="POST" action="youraccount2009.php?user_id=<?php echo $channel_user_id; ?>" style="display: inline;">
+            <form method="POST" action="youraccount2009.php?u=<?php echo $channel_user_id; ?>" style="display: inline;">
                 <input type="hidden" name="subscribe_action" value="1">
                 <button class="subscribe-btn">
-                    <?php echo $is_subscribed ? 'UNSUBSCRIBE ' : 'SUBSCRIBE '; ?> 
-                    <?php echo number_format($total_views, 0, ',', '.'); ?>
+                    <?php echo $is_subscribed ? 'UNSUBSCRIBE' : 'SUBSCRIBE'; ?> 
+                    <?php echo number_format($subscriber_count, 0, ',', '.'); ?>
                 </button>
             </form>
         <?php else: // Mostra apenas a contagem se for o próprio canal ou deslogado ?>
             <span style="font-size: 14px; font-weight: bold; color: #FF0000; padding: 5px 12px; border: 2px solid #FF0000;">
-                SUBSCRIBERS: <?php echo number_format($subscriber_count); ?>
+                SUBSCRIBERS: <?php echo number_format($subscriber_count, 0, ',', '.'); ?>
             </span>
         <?php endif; ?>
     </div>
@@ -563,7 +482,7 @@ $uploads = $stmt_uploads->fetchAll(PDO::FETCH_ASSOC);
                 Atividade Recente
             </div>
             <div class="channel-info-box-styled">
-                <p>Vídeo: **<?php echo count($uploads); ?>** uploads no total.</p>
+                <p>Vídeo: **<?php echo count($uploads); ?>** uploads no total (Exibidos).</p>
                 <p>Último upload: <?php echo !empty($uploads) ? date("d/m/Y", strtotime($uploads[0]['upload_date'])) : 'N/A'; ?></p>
                 <p style="color: #0000FF;">Status: ONLINE</p>
             </div>
@@ -585,19 +504,19 @@ $uploads = $stmt_uploads->fetchAll(PDO::FETCH_ASSOC);
                     <div class="video-details">
                         <h4 style="margin: 0 0 5px 0;">
                             <a href="watch.php?v=<?php echo $featured_video['id']; ?>" class="featured-video-title">
-                                <?php echo $featured_video['title']; ?>
+                                <?php echo htmlspecialchars($featured_video['title']); ?>
                             </a>
                         </h4>
                         
                         <p>
                             Views: <span style="color: #FF0000;"><?php echo number_format($featured_video['views']); ?></span> | 
-                            Duração: <?php echo $featured_video['duration']; ?>
+                            Duração: <?php echo htmlspecialchars($featured_video['duration']); ?>
                         </p>
                         
                         <div style="border-top: 1px dashed #CCC; padding-top: 10px; margin-top: 10px;">
                             <p style="font-size: 12px; line-height: 1.4;">
                                 <strong>Descrição:</strong><br>
-                                <?php echo nl2br(substr($featured_video['description'], 0, 200) . (strlen($featured_video['description']) > 200 ? '...' : '')); ?>
+                                <?php echo nl2br(htmlspecialchars(substr($featured_video['description'], 0, 200) . (strlen($featured_video['description']) > 200 ? '...' : ''))); ?>
                             </p>
                         </div>
                     </div>
@@ -613,7 +532,7 @@ $uploads = $stmt_uploads->fetchAll(PDO::FETCH_ASSOC);
 
         <div class="right-sidebar">
             <div class="block-header">
-                Uploads Mais Recentes
+                <?php echo $show_all ? 'TODOS OS UPLOADS' : 'Uploads Mais Recentes'; ?>
             </div>
             
             <?php if (!empty($uploads)): ?>
@@ -634,7 +553,12 @@ $uploads = $stmt_uploads->fetchAll(PDO::FETCH_ASSOC);
                         </li>
                     <?php endforeach; ?>
                 </ul>
-                <p style="text-align: right; font-size: 11px;"><a href="#" style="color: #FF0000;">Ver todos &raquo;</a></p>
+                
+                <?php if (!$show_all): // Mostra o link "Ver todos" APENAS se não estivermos já vendo todos ?>
+                    <p style="text-align: right; font-size: 11px;">
+                        <a href="youraccount2009.php?u=<?php echo $channel_user_id; ?>&view=all" style="color: #FF0000;">Ver todos &raquo;</a>
+                    </p>
+                <?php endif; ?>
 
             <?php else: ?>
                 <p style="font-size: 12px;">Nenhum upload público recente.</p>
@@ -660,9 +584,9 @@ $uploads = $stmt_uploads->fetchAll(PDO::FETCH_ASSOC);
                 
                 <p style="text-align: center; margin-top: 10px; font-size: 11px;">
                     <?php if ($featured_video_id): ?>
-                         <a href="watch.php?v=<?php echo $featured_video_id; ?>" style="color: #0000FF; font-weight: bold;">[Comentar no Vídeo]</a>
+                             <a href="watch.php?v=<?php echo $featured_video_id; ?>" style="color: #0000FF; font-weight: bold;">[Comentar no Vídeo]</a>
                     <?php else: ?>
-                         <span style="color: #888;">(Nenhum vídeo para comentar)</span>
+                             <span style="color: #888;">(Nenhum vídeo para comentar)</span>
                     <?php endif; ?>
                 </p>
             </div>

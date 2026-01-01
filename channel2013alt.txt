@@ -1,0 +1,16 @@
+                    <a href="<?php echo $base_url; ?>&tab=home" class="<?php echo $current_tab == 'home' ? 'active-tab' : ''; ?>">
+                        <h1 class="channel-tab-link">
+                            <svg style="transform: translateY(9px);" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24px" height="24px">
+                                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                            </svg>
+                        </h1>
+                    </a>
+                    <a href="<?php echo $base_url; ?>&tab=videos" class="<?php echo $current_tab == 'videos' ? 'active-tab' : ''; ?>">
+                        <h1 class="channel-tab-link">Vídeos</h1>
+                    </a>
+                    <a href="<?php echo $base_url; ?>&tab=playlists" class="<?php echo $current_tab == 'playlists' ? 'active-tab' : ''; ?>">
+                        <h1 class="channel-tab-link">playlists</h1>
+                    </a>
+                    <a href="<?php echo $base_url; ?>&tab=about" class="<?php echo $current_tab == 'about' ? 'active-tab' : ''; ?>">
+                        <h1 class="channel-tab-link">Sobre</h1>
+                    </a>

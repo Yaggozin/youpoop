@@ -1,0 +1,863 @@
+<?php
+// channel2013.php
+session_start();
+// ATENÇÃO: Verifique se este caminho está correto.
+require 'db_connect.php'; 
+
+// =================================================================
+// 1. LÓGICA DE BUSCA DE DADOS DO CANAL
+// =================================================================
+
+$target_username = $_GET['user'] ?? null;
+$channel_data = null;
+$error_channel = '';
+
+// Se o nome de usuário não estiver na URL, volta para a página inicial
+if (!$target_username) {
+    header('Location: index.php');
+    exit;
+}
+
+try {
+    // ATUALIZADO: Usando os nomes das colunas que você confirmou (profile_icon_path, channel_banner_path, channel_slogan)
+    $sql = "
+        SELECT 
+            username, 
+            profile_icon_path,      /* AVATAR */
+            channel_banner_path,    /* BANNER */
+            channel_slogan          /* DESCRIÇÃO/SLOGAN */
+        FROM users 
+        WHERE username = :username
+    ";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute(['username' => $target_username]);
+    $channel_data = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$channel_data) {
+        $error_channel = "Canal **@{$target_username}** não encontrado.";
+    }
+} catch (PDOException $e) {
+    $error_channel = "Erro ao carregar dados do canal: " . $e->getMessage();
+}
+
+// =================================================================
+// 2. DEFINIÇÃO DE VARIÁVEIS E VALORES PADRÃO
+// =================================================================
+
+$channel_name = htmlspecialchars($channel_data['username'] ?? 'Canal Não Encontrado');
+$channel_title = $channel_name; // Para usar no <title>
+
+// ATENÇÃO: Ajuste os caminhos padrão ('images/youpoophd/account/...') conforme a localização dos seus arquivos.
+$avatar_src = htmlspecialchars($channel_data['profile_icon_path'] ?? 'images/youpoophd/account/avatar/avatar_1.png');
+$banner_src = htmlspecialchars($channel_data['channel_banner_path'] ?? 'images/youpoophd/account/banner/banner_1.png');
+$slogan = htmlspecialchars($channel_data['channel_slogan'] ?? 'Este canal não possui uma descrição.');
+
+// =================================================================
+// 3. VERIFICAÇÃO DE PROPRIEDADE (NOVO)
+// =================================================================
+
+$logged_username = $_SESSION['username'] ?? null;
+
+// Verifica se há um usuário logado E se o nome de usuário logado
+// é idêntico ao nome do canal que está sendo visualizado.
+$is_owner = ($logged_username !== null && $logged_username === $channel_data['username']);
+
+?>
+
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Channel Name</title>
+    <link rel="shortcut icon" href="images/youpoophd/favicon/favicon_16x16.png" type="image/x-icon">
+    <link rel="stylesheet" href="styles/buttons.css">
+</head>
+<style>
+
+    :root {
+        --cor-principal: #ffffffff; /* cor padrão */
+        --cor-secundaria: #fbfbfb; /* cor hover */
+        --cor-terciaria: #9c9c9cff; /* botões na subheader */
+        --cor-quarternaria: #858585; /* detales dos vídeos */
+        --cor-quinquenária: #f4f4f4; /* cor do background */
+        --cor-borda: #d8d8d8; /* borda */
+        --cor-barra: #E5E5E5; /* aquela no header do channel */
+    }
+
+    body {
+        overflow-x: hidden;
+        background: var(--cor-quinquenária);
+        font-family: Arial, Helvetica, sans-serif;
+        color: #333333;
+        font-size: 13px;
+    }
+
+    body::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
+    }
+
+    .channel-container {
+        width: 90%;
+        max-width: 1250px;
+        margin: 20px auto;
+        display: flex;
+        gap: 13px;
+        flex-direction: column;
+    }
+
+    .top-bar-content {
+        align-content: center;
+    }
+
+    .channel-header-bar {
+        width: auto;
+        flex-grow: 1;
+        border: 1px solid var(--cor-borda);
+        border-top: 0px solid transparent;
+        background: var(--cor-principal);
+        padding: 20px 20px 5px;
+        line-height: 13px;
+        min-height: 29px;
+        box-shadow: 0px 3px 6px 1px #00000005;
+    }
+
+    .channel-header-bar h1 {
+        width: -webkit-fill-available;
+        margin: 0px;
+        line-height: 24px;
+        color: #333;
+        font-weight: normal;
+        font-size: 20px;
+        border-bottom: 1px solid var(--cor-barra);
+        padding-bottom: 12px;
+        margin-top: 0;
+        margin-bottom: 8px;
+    }
+
+    #channel-subheader-bar {
+        margin: -5px 0px 0px 0px;
+        background: var(--cor-principal);
+    }
+
+    #channel-subheader-bar h1 {
+        font-weight: bold;
+        display: inline;
+        font-size: 11px;
+        color: var(--cor-terciaria);
+        height: 29px;
+        line-height: 29px;
+        margin-right: 25px;
+        border-bottom: none;
+        padding-bottom: 11px;
+        margin-top: 0px;
+        margin-bottom: 0px;
+        cursor: default;
+    }
+
+    #channel-subheader-bar h1:hover {
+        cursor: pointer;
+        color: #000000;
+        border-bottom: 3px solid red;
+    }
+
+    .avatar {
+        cursor: default;
+        position: absolute;
+        margin-left: 10px;
+        margin-top: 10px;
+        width: 100px;
+        height: 100px;
+        background: black;
+        /* background-image: url('test/FOTO YAGGOZIT0.png'); */
+        background-size: cover;
+        background-position: center center;
+        background-repeat: no-repeat;
+        box-shadow: 0 1px 8px 0px rgba(0, 0, 0, .4);
+    }
+
+    .avatar:hover {
+        cursor: pointer;
+        filter: brightness(120%);
+    }
+
+    .banner {
+        max-width: 100%;
+        max-height: 100%;
+        width: 1250px;
+        height: 200px;
+        background: black;
+        /* background-image: url('test/banner-test.png'); */
+        background-size: cover;
+        background-position: 0px 0px;
+        background-repeat: no-repeat;
+    }
+
+    .principal-container {
+        font-size: smaller;
+        height: 309.5px;
+        width: auto;
+        flex-grow: 1;
+        border: 1px solid var(--cor-borda);
+        background: var(--cor-principal);
+        padding: 20px 20px 5px;
+        line-height: 13px;
+        min-height: 29px;
+        display: grid;
+    }
+
+    .principal-container:hover {
+        background: var(--cor-secundaria);
+    }
+
+    .playlist-container {
+        font-size: smaller;
+        height: 204.47px;
+        width: auto;
+        flex-grow: 1;
+        border: 1px solid var(--cor-borda);
+        background: var(--cor-principal);
+        padding: 20px 20px 5px;
+        line-height: 13px;
+        min-height: 29px;
+        display: grid;
+    }
+
+    .playlist-container h1 {
+        margin-top: 5px;
+        font-weight: normal;
+        font-size: 20px;
+    }
+
+    .default-two-container {
+        font-size: smaller;
+        height: auto;
+        width: auto;
+        flex-grow: 1;
+        border: 1px solid var(--cor-borda);
+        background: var(--cor-principal);
+        padding: 20px 20px 20px;
+        line-height: 13px;
+        min-height: 29px;
+        display: grid;
+        gap: 12px;
+    }
+
+    .default-two-container h1 {
+        margin-top: 5px;
+        font-weight: normal;
+        font-size: 20px;
+    }
+
+    .video-content {
+        height: 292.5px;
+        width: 520px;
+        background-color: black;
+        /* background: url(test/thumbnail.png); */
+        background-repeat: no-repeat;
+        background-size: cover;
+        flex-shrink: 0;
+    }
+
+    .video-detail {
+        display: block;
+        gap: 15px;
+        text-align: left;
+        flex-grow: 1;
+    }
+
+    .video-title {
+        display: block;
+        color: #468acaff;
+        font-size: 16px;
+    }
+
+    .video-text {
+        display: block;
+        color: var(--cor-quarternaria);
+        font-size: 12px;
+        font-weight: normal;
+    }
+
+    .video-desc {
+        display: -webkit-box;
+        max-width: 50ch;
+        word-break: break-all;
+        hyphens: auto;
+        width: 100%;
+        height: 35ch;
+        display: block;
+        color: var(--cor-quarternaria);
+        font-size: 12px;
+        font-weight: normal;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 18;
+        text-align: justify;
+        margin-bottom: 12px;
+    }
+
+    .basic-settings {
+        display: flex;
+        padding: 0px 20px 0px 20px;
+        background: #2e2e2e;
+        margin-bottom: -13px;
+    }
+
+    .basic-settings h3 {
+        font-size: small;
+        margin-right: 35px;
+        color: #9c9c9c;
+        font-weight: bold;
+    }
+
+
+    .button-blue {
+        color: #fff;
+        background-color: #538ADA;
+        background: linear-gradient(0deg, #21539C, #538ADA);
+        background-repeat: no-repeat;
+        border: #0D2F60 solid 2px;
+    }
+
+    button:hover {
+        background: #e5e5e5;
+        cursor: pointer;
+    }
+
+    #button-settings {
+        cursor: default;
+    }
+
+    #button-settings:hover {
+        color: #d8d8d8;
+        cursor: pointer;
+    }
+
+    .channel-tab-content {
+        display: flex;
+        gap: 13px;
+        flex-direction: column;
+    }
+
+    .channel-tab-link {
+        cursor: default;
+    }
+
+    .channel-tab-link:hover {
+        color: #9c9c9c;
+        border-bottom: 3px solid red;
+        cursor: pointer;
+    }
+
+    .channel-tab-link.active-tab {
+        color: #000000 !important;
+        border-bottom: 3px solid red !important;
+    }
+
+</style>
+<body>
+    <div class="channel-container">
+        <?php 
+        // NOVO: Apenas exibe o bloco de configurações se o usuário logado for o dono do canal
+        if ($is_owner): 
+        ?>
+        <div class="basic-settings">
+            <h3>236 inscritos</h3>
+            <h3>53 views</h3>
+            <h3 id="button-settings">Gerenciar vídeos</h3>
+            <h3 style="margin-left: auto; margin-right: 0px;">Ver como público</h3>
+        </div>
+        <?php endif; // Fim do bloco if ($is_owner) ?>
+
+        <div class="top-bar-content">
+            <div class="avatar" style="background-image: url('<?php echo $avatar_src; ?>');"></div>
+            <div class="banner" style="background-image: url('<?php echo $banner_src; ?>');"></div>
+            <div class="channel-header-bar">
+                <div id="channel-principal-info" style="display: flex; align-items: flex-start; gap: 20px;">
+                    <h1><?php echo $channel_name; ?></h1>
+                    <?php 
+                    // NOVO: Apenas exibe o botão se o usuário logado for o dono do canal
+                    if ($is_owner): 
+                    ?>
+                    <a href="dashboard.php?tab=layout-tab">
+                        <button style="width: 113%; margin-left: auto; border-radius: 0px;">Configurar Layout</button>
+                    </a>
+                    <?php endif; // Fim do bloco if ($is_owner) ?>
+                </div>
+                <div id="channel-subheader-bar">
+                    <h1 class="channel-tab-link active-tab" data-tab-id="home-tab" style="color: #000000; border-bottom: 3px solid red;">
+                        <svg style="transform: translateY(9px);" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24px" height="24px">
+                            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                        </svg>
+                    </h1>
+                    <h1 class="channel-tab-link" data-tab-id="videos-tab">Videos</h1>
+                    <h1 class="channel-tab-link" data-tab-id="playlists-tab">Playlists</h1>
+                    <h1 class="channel-tab-link" data-tab-id="about-tab">Sobre</h1>
+                </div>
+            </div>
+        </div>
+            <div id="home-tab" class="channel-tab-content" style="display: grid;">
+                <div class="principal-container" style="display: flex; align-items: flex-start; gap: 15px;">
+                    <div class="video-content" style="
+                        flex-shrink: 0;">
+                    </div>
+                    <div class="video-detail" style="flex-grow: 1;">
+                        <h1 class="video-title">Video trailer</h1>
+                        <h1 class="video-text">32 views  23 horas atrás</h1>
+                        <h1 class="video-desc">Descrição aqui.</h1>
+                    </div>
+                </div>
+                
+                <div class="playlist-container">
+                    <h1>Envios Recentes</h1>
+                    <div class="video-content" style="flex-shrink: 0; height: 104.06px; width: 185px;"></div>
+                    <div class="video-detail" style="flex-grow: 1;">
+                        <h1 class="video-title" style="font-size: small; font-weight: bold; margin-top: -4px;">Video</h1>
+                        <h1 class="video-text" style="font-size: 12px;">32 views  23 horas atrás</h1>
+                    </div>
+                </div>
+                
+                <?php 
+                // NOVO: Apenas exibe o botão se o usuário logado for o dono do canal
+                if ($is_owner): 
+                ?>
+                <button type="button" style="width: 20%; align-self: left;">Adicionar uma seção</button>
+                <?php endif; // Fim do bloco if ($is_owner) ?>
+            </div>
+
+            <div id="videos-tab" class="channel-tab-content" style="display: none;">
+                <div class="default-two-container">
+                    <h1>Envios</h1>
+                    <div class="video-content" style="flex-shrink: 0; height: 104.06px; width: 185px;"></div>
+                    <div class="video-detail" style="flex-grow: 1;">
+                        <h1 class="video-title" style="font-size: small; font-weight: bold; margin-top: -4px;">Video</h1>
+                        <h1 class="video-text" style="font-size: 12px;">32 views  23 horas atrás</h1>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="playlists-tab" class="channel-tab-content" style="display: none;"></div>
+
+            <div id="about-tab" class="channel-tab-content" style="display: none;">
+                <div class="default-two-container">
+                    <h1>Sobre o Canal</h1>
+                    <p style="font-size: 13px; margin-top: 10px; color: #858585; font-weight: normal;"><strong style="font-weight: normal;"></strong> <?php echo $slogan; ?></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tabLinks = document.querySelectorAll('.channel-tab-link');
+    const tabContents = document.querySelectorAll('.channel-tab-content');
+
+    function switchTab(targetTabId) {
+        
+        // 1. Esconde todo o conteúdo da aba
+        tabContents.forEach(content => {
+            content.style.display = 'none';
+        });
+
+        // 2. Remove o estilo ativo de todos os links
+        tabLinks.forEach(link => {
+            link.classList.remove('active-tab');
+            link.style.borderBottom = 'none'; // Remove a linha
+            link.style.color = 'var(--cor-terciaria)'; // Cor padrão (ou a cor original)
+        });
+
+        // 3. Exibe o conteúdo da aba selecionada
+        const targetContent = document.getElementById(targetTabId);
+        if (targetContent) {
+            targetContent.style.display = 'grid';
+        }
+
+        // 4. Marca o link da aba como ativo
+        const activeLink = document.querySelector(`.channel-tab-link[data-tab-id="${targetTabId}"]`);
+        if (activeLink) {
+            activeLink.classList.add('active-tab');
+            activeLink.style.color = '#000000'; // Cor ativa
+        }
+    }
+
+    // Adiciona o evento de clique a todos os links de abas
+    tabLinks.forEach(link => {
+        link.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-tab-id');
+            switchTab(targetId);
+        });
+    });
+
+    switchTab('home-tab');
+});
+</script>
+</html>
+
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tabLinks = document.querySelectorAll('.channel-tab-link');
+    const tabContents = document.querySelectorAll('.channel-tab-content');
+    const homeTab = document.getElementById('home-tab');
+    
+    // Controles do Modal
+    const modal = document.getElementById('add-section-modal');
+    const btn = document.getElementById('add-section-btn');
+    const span = document.getElementsByClassName('close-btn')[0];
+    const form = document.getElementById('section-form');
+    const sectionTypeSelect = document.getElementById('section-type');
+    const paramInputDiv = document.getElementById('param-input');
+    const saveBtn = document.getElementById('save-sections-btn');
+
+    // Variável que armazena a configuração atual das seções (o "editor")
+    let sectionsInEditor = [];
+
+    let dragStartIndex;
+    let dragEndIndex;
+
+    // --- FUNÇÕES DE LAYOUT (ABA) ---
+    function switchTab(targetTabId) {
+        tabContents.forEach(content => {
+            content.style.display = 'none';
+        });
+        tabLinks.forEach(link => {
+            link.classList.remove('active-tab');
+            link.style.borderBottom = 'none'; 
+            link.style.color = 'var(--cor-terciaria)';
+        });
+
+        const targetContent = document.getElementById(targetTabId);
+        if (targetContent) {
+            targetContent.style.display = 'grid';
+        }
+
+        const activeLink = document.querySelector(`.channel-tab-link[data-tab-id="${targetTabId}"]`);
+        if (activeLink) {
+            activeLink.classList.add('active-tab');
+            activeLink.style.color = '#000000';
+            activeLink.style.borderBottom = '3px solid red';
+        }
+    }
+
+    // Event listeners para as abas
+    tabLinks.forEach(link => {
+        link.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-tab-id');
+            switchTab(targetId);
+        });
+    });
+    // Inicializa a aba Home
+    switchTab('home-tab');
+
+    // --- FUNÇÕES DE SEÇÃO (CUSTOMIZAÇÃO) ---
+
+    // Função para mostrar/esconder o botão de salvar
+    function toggleSaveButton() {
+        const isOwner = <?php echo $is_owner ? 'true' : 'false'; ?>;
+        if (!isOwner || !saveBtn) return;
+        
+        // Verifica se existem seções editáveis na tela
+        const hasControls = document.querySelector('.section-wrapper .section-controls');
+        saveBtn.style.display = hasControls ? 'block' : 'none';
+    }
+
+    // Inicializa o array de edição com base nas seções carregadas do PHP (data-attributes)
+    function initializeSections() {
+        sectionsInEditor = [];
+        document.querySelectorAll('.channel-section-block').forEach(block => {
+            const params = block.getAttribute('data-params');
+            sectionsInEditor.push({
+                type: block.getAttribute('data-type'),
+                params: params ? JSON.parse(params) : {}
+            });
+        });
+        // A visualização inicial é tratada pelo PHP. O JS assume se for dono.
+        if (<?php echo $is_owner ? 'true' : 'false'; ?>) {
+             // Redesenha a tela para adicionar os botões de controle
+             renderSections();
+        }
+        toggleSaveButton();
+    }
+
+    // Função principal para redesenhar as seções na Home Tab
+    function renderSections() {
+        const isOwner = <?php echo $is_owner ? 'true' : 'false'; ?>;
+        if (!isOwner) return;
+
+        // O primeiro item do homeTab antes de limpar, é o botão (se existir)
+        const currentAddBtn = document.getElementById('add-section-btn');
+        const currentSaveBtn = document.getElementById('save-sections-btn');
+
+        homeTab.innerHTML = ''; // Limpa o conteúdo
+
+        // Renderiza o novo HTML
+        sectionsInEditor.forEach((section, index) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'section-wrapper';
+            wrapper.style.marginBottom = '13px';
+            wrapper.style.position = 'relative'; // Para que os controles funcionem
+
+            const sectionBlock = document.createElement('div');
+            // Classes de exemplo. Altere conforme o CSS do seu layout.
+            sectionBlock.className = 'default-two-container channel-section-block'; 
+            sectionBlock.setAttribute('data-type', section.type);
+            sectionBlock.setAttribute('data-params', JSON.stringify(section.params));
+            
+            let title = '';
+            let content = '';
+            let class_type = 'default-two-container'; // Classe base
+
+            switch(section.type) {
+                case 'main_video':
+                    title = ''; // Sem título interno
+                    class_type = 'principal-container';
+                    content = `
+                        <div class="video-content" style="flex-shrink: 0;"></div>
+                        <div class="video-detail" style="flex-grow: 1;">
+                            <h1 class="video-title">Video trailer</h1>
+                            <h1 class="video-text">32 views  23 horas atrás</h1>
+                            <h1 class="video-desc">Descrição aqui.</h1>
+                        </div>`;
+                    break;
+
+                case 'recent_uploads':
+                    title = 'Envios Recentes';
+                    class_type = 'default-two-container';
+                    content = `<p style="color: #999; margin-top: 10px;">[Envios Recentes - Placeholder: 3 vídeos seriam exibidos aqui.]</p>`;
+                    break;
+                case 'specific_playlist':
+                    const playlistName = section.params.playlist_name || 'Playlist Não Nomeada';
+                    title = 'Playlist: ' + playlistName;
+                    content = `<p style="color: #999; margin-top: 10px;">[Playlist: ${playlistName} - Placeholder: 2 vídeos seriam exibidos aqui.]</p>`;
+                    class_type = 'playlist-container';
+                    break;
+                default:
+                    title = 'Seção Desconhecida';
+                    content = `<p style="color: #999; margin-top: 10px;">Esta seção não pôde ser renderizada.</p>`;
+            }
+            
+            sectionBlock.className = `${class_type} channel-section-block`;
+            sectionBlock.innerHTML = `<h1>${title}</h1>${content}`;
+            wrapper.appendChild(sectionBlock);
+
+            // Se for o vídeo principal, aplicamos o display flex, se não, assumimos que o CSS faz isso ou é outra seção.
+            if (section.type === 'main_video') {
+                sectionBlock.style.cssText = 'display: flex; align-items: flex-start; gap: 15px;';
+            }
+
+            // O H1 só aparece se houver título
+            sectionBlock.innerHTML = (title ? `<h1>${title}</h1>` : '') + content;
+            wrapper.appendChild(sectionBlock);
+
+            // Adiciona controles de edição (apenas se for o dono)
+            if (isOwner) {
+                const controls = document.createElement('div');
+                controls.className = 'section-controls';
+                controls.style.cssText = 'position: absolute; right: 5px; top: 5px; display: flex; gap: 5px;';
+                
+                controls.innerHTML = `
+                    <button class="control-btn move-up-btn" title="Mover para Cima">↑</button>
+                    <button class="control-btn move-down-btn" title="Mover para Baixo">↓</button>
+                    <button class="control-btn delete-btn" title="Excluir Seção">X</button>
+                `;
+                wrapper.appendChild(controls);
+
+                // Adiciona os event listeners aos novos botões
+                controls.querySelector('.delete-btn').addEventListener('click', () => deleteSection(index));
+                controls.querySelector('.move-up-btn').addEventListener('click', () => moveSection(index, -1));
+                controls.querySelector('.move-down-btn').addEventListener('click', () => moveSection(index, 1));
+            }
+
+            homeTab.appendChild(wrapper);
+        });
+        
+        // Adiciona o botão "Adicionar Seção" no final
+        homeTab.appendChild(currentAddBtn);
+        homeTab.appendChild(currentSaveBtn);
+        
+        toggleSaveButton();
+
+        addDragListeners();
+    }
+
+// --- FUNÇÕES DE DRAG AND DROP (NOVO) ---
+    function addDragListeners() {
+        const wrappers = document.querySelectorAll('.section-wrapper');
+        wrappers.forEach(wrapper => {
+            wrapper.addEventListener('dragstart', dragStart);
+            wrapper.addEventListener('dragover', dragOver);
+            wrapper.addEventListener('dragleave', dragLeave);
+            wrapper.addEventListener('drop', dragDrop);
+            wrapper.addEventListener('dragend', dragEnd);
+        });
+    }
+
+    function dragStart() {
+        // 'this' é o elemento .section-wrapper que está sendo arrastado
+        this.classList.add('dragging');
+        dragStartIndex = +this.getAttribute('data-index'); // O '+' converte para número
+    }
+
+    function dragOver(e) {
+        e.preventDefault(); // Permite o drop
+        const currentWrapper = this;
+        // Adiciona uma linha visual (opcional, mas bom para UX)
+        if (!currentWrapper.classList.contains('dragging')) {
+            currentWrapper.style.borderTop = '3px solid red';
+        }
+    }
+
+    function dragLeave() {
+        this.style.borderTop = 'none';
+    }
+
+    function dragDrop() {
+        this.style.borderTop = 'none';
+        
+        const dragItem = document.querySelector('.dragging');
+        if (!dragItem) return;
+
+        // O índice do elemento sobre o qual o item foi solto
+        dragEndIndex = +this.getAttribute('data-index');
+
+        // Reordena o array e redesenha
+        if (dragStartIndex !== dragEndIndex) {
+            reorderSectionsArray();
+        }
+    }
+
+    function dragEnd() {
+        this.classList.remove('dragging');
+        // Limpa a borda vermelha em todos os wrappers após o drop
+        document.querySelectorAll('.section-wrapper').forEach(w => w.style.borderTop = 'none');
+    }
+
+    function reorderSectionsArray() {
+        const itemToMove = sectionsInEditor[dragStartIndex];
+        
+        // Remove o item da posição inicial
+        sectionsInEditor.splice(dragStartIndex, 1);
+        
+        // Insere o item na nova posição
+        sectionsInEditor.splice(dragEndIndex, 0, itemToMove);
+        
+        // Redesenha as seções na tela com a nova ordem
+        renderSections();
+    }
+
+    function deleteSection(index) {
+        if (confirm("Deseja realmente remover esta seção?")) {
+            sectionsInEditor.splice(index, 1);
+            renderSections();
+        }
+    }
+
+    // --- EVENTOS DO MODAL E SALVAMENTO ---
+
+    // Abre o modal
+    if(btn) {
+        btn.onclick = function() {
+            modal.style.display = "block";
+        }
+    }
+
+    // Fecha o modal pelo 'x'
+    if (span) {
+        span.onclick = function() {
+            modal.style.display = "none";
+        }
+    }
+
+    // Fecha o modal pelo clique fora
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
+    }
+
+    // Lógica para mostrar/esconder campos de parâmetros
+    sectionTypeSelect.addEventListener('change', function() {
+        if (this.value === 'specific_playlist') {
+            paramInputDiv.style.display = 'block';
+        } else {
+            paramInputDiv.style.display = 'none';
+        }
+    });
+    sectionTypeSelect.dispatchEvent(new Event('change')); // Dispara na inicialização
+
+    // Lógica de adicionar a seção ao layout (no editor)
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const type = sectionTypeSelect.value;
+        let params = {};
+
+        if (type === 'specific_playlist') {
+            const playlistName = document.getElementById('playlist-name-input').value.trim();
+            if (playlistName) {
+                params.playlist_name = playlistName;
+            } else {
+                alert("Por favor, forneça o nome da playlist.");
+                return;
+            }
+        }
+        
+        // Adiciona a nova seção ao array de edição
+        sectionsInEditor.push({ type: type, params: params });
+        renderSections(); // Re-renderiza a visualização
+
+        modal.style.display = "none"; // Fecha o modal
+        form.reset(); // Limpa o formulário
+    });
+
+    // Lógica de Salvar no Banco de Dados (AJAX)
+    if(saveBtn) {
+        saveBtn.addEventListener('click', function() {
+            if (sectionsInEditor.length === 0) {
+                if (!confirm("O layout está vazio. Deseja salvar a configuração sem seções?")) {
+                    return;
+                }
+            }
+
+            // Mapeia o array para o formato JSON que o PHP espera
+            const sectionsToSave = sectionsInEditor.map(section => ({
+                type: section.type,
+                params: section.params
+            }));
+
+            const formData = new FormData();
+            formData.append('action', 'save_sections');
+            formData.append('sections', JSON.stringify(sectionsToSave));
+
+            fetch('channel2013.php?user=<?php echo urlencode($target_username); ?>', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert("Seções salvas com sucesso! A página será recarregada.");
+                    window.location.reload();
+                } else {
+                    alert("Erro ao salvar seções: " + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Erro de comunicação:', error);
+                alert("Ocorreu um erro de rede ao tentar salvar as seções.");
+            });
+        });
+    }
+
+    // Inicializa as seções ao carregar a página
+    initializeSections();
+});
+</script>
+
+
+
+

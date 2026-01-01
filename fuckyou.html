@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quadrado Arrastável</title>
+    <style>
+        /* Estilos CSS */
+        #quadrado {
+            width: 100px;
+            height: 100px;
+            background-color: dodgerblue; /* Cor de fundo */
+            position: absolute; /* Essencial para poder mover */
+            top: 50px;
+            left: 50px;
+            cursor: grab; /* Mudar o cursor para indicar que é arrastável */
+            border-radius: 0px;
+        }
+
+        #quadrado:active {
+            cursor: grabbing; /* Mudar o cursor enquanto estiver arrastando */
+            background-color: royalblue; /* Mudar a cor ao arrastar */
+        }
+    </style>
+</head>
+<body>
+
+    <div id="quadrado">eae</div>
+
+    <script>
+        // Código JavaScript para arrastar
+        const quadrado = document.getElementById('quadrado');
+        let isDragging = false; // Flag para saber se o mouse está clicado no quadrado
+        let offset = { x: 0, y: 0 }; // Armazena a diferença entre o clique e a posição do quadrado
+
+        // 1. Quando o mouse é pressionado no quadrado
+        quadrado.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            // Calcula o offset (onde o mouse clicou dentro do quadrado)
+            offset.x = e.clientX - quadrado.offsetLeft;
+            offset.y = e.clientY - quadrado.offsetTop;
+            
+            // Impede a seleção de texto durante o arrasto
+            document.body.style.userSelect = 'none'; 
+        });
+
+        // 2. Enquanto o mouse está se movendo (em qualquer lugar da página)
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return; // Se não estiver arrastando, sai
+            
+            // Calcula a nova posição do quadrado
+            let newX = e.clientX - offset.x;
+            let newY = e.clientY - offset.y;
+
+            // Define as novas posições (garantindo que ele use 'px')
+            quadrado.style.left = newX + 'px';
+            quadrado.style.top = newY + 'px';
+        });
+
+        // 3. Quando o botão do mouse é solto (em qualquer lugar da página)
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            // Restaura a seleção de texto
+            document.body.style.userSelect = 'auto'; 
+        });
+
+    </script>
+</body>
+</html>

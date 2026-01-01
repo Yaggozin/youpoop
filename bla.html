@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bloco de Notas (Frutiger Aero Style)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Imports obrigatórios do Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Configurações e Variáveis Globais
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-notepad-app';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db, auth, userId = null;
+        let isAuthReady = false;
+
+        // Função de inicialização do Firebase e Autenticação
+        async function initializeFirebase() {
+            if (!firebaseConfig) {
+                console.error("Firebase Configuração não encontrada.");
+                return;
+            }
+
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                setLogLevel('Debug');
+
+                // Autenticação
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                // Listener de estado de autenticação
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        isAuthReady = true;
+                        console.log("Usuário autenticado:", userId);
+                        // Inicia o carregamento e salvamento após a autenticação
+                        setupNotepad();
+                    } else {
+                        // Se não estiver autenticado, usa um ID anônimo temporário
+                        userId = crypto.randomUUID();
+                        isAuthReady = true;
+                        setupNotepad(); // Ainda permite usar o Notepad, mas os dados não serão persistentes se o token mudar.
+                        console.warn("Autenticação anônima usada. UserId temporário:", userId);
+                    }
+                });
+
+            } catch (error) {
+                console.error("Erro ao inicializar ou autenticar no Firebase:", error);
+                document.getElementById('notepad-content').value = "ERRO: Falha ao carregar o banco de dados. Salvamento automático desabilitado.";
+            }
+        }
+
+        // Funções do Bloco de Notas
+        const NOTE_DOC_REF = (uid) => doc(db, `/artifacts/${appId}/users/${uid}/notepad_notes/main_note`);
+        const DEBOUNCE_DELAY = 1000; // 1 segundo
+
+        let saveTimeout = null;
+
+        function setupNotepad() {
+            if (!db || !userId) return;
+
+            const textarea = document.getElementById('notepad-content');
+            
+            // 1. Carregar nota existente (com listener em tempo real)
+            onSnapshot(NOTE_DOC_REF(userId), (docSnapshot) => {
+                if (docSnapshot.exists()) {
+                    const data = docSnapshot.data();
+                    const content = data.content || "";
+                    if (textarea.value !== content) {
+                        textarea.value = content;
+                        console.log("Nota carregada do Firestore.");
+                    }
+                } else {
+                    console.log("Nenhuma nota existente. Iniciando com texto vazio.");
+                    textarea.value = "";
+                }
+            }, (error) => {
+                console.error("Erro ao receber updates do Firestore:", error);
+            });
+
+
+            // 2. Função de salvamento (Debounce)
+            const saveNote = async (content) => {
+                if (!isAuthReady || !userId) {
+                    console.log("Não autenticado ou DB não pronto. Não será salvo.");
+                    return;
+                }
+                
+                try {
+                    await setDoc(NOTE_DOC_REF(userId), {
+                        content: content,
+                        timestamp: new Date().toISOString()
+                    }, { merge: true });
+                    document.getElementById('title-text').textContent = "Bloco de Notas - Sua nota está salva.";
+                    console.log("Nota salva com sucesso.");
+                } catch (e) {
+                    console.error("Erro ao salvar documento: ", e);
+                    document.getElementById('title-text').textContent = "Bloco de Notas - ERRO DE SALVAMENTO!";
+                }
+            };
+
+            // Listener de digitação com debounce
+            textarea.addEventListener('input', () => {
+                document.getElementById('title-text').textContent = "Bloco de Notas *"; // Indica que há alterações não salvas
+                
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(() => {
+                    saveNote(textarea.value);
+                }, DEBOUNCE_DELAY);
+            });
+            
+            // 3. Adicionar eventos aos botões do Menu
+            const newButton = document.getElementById('menu-new');
+            const saveButton = document.getElementById('menu-save'); // Salvamento forçado
+            const modal = document.getElementById('custom-modal');
+            const modalMessage = document.getElementById('modal-message');
+            const modalConfirm = document.getElementById('modal-confirm');
+            const modalCancel = document.getElementById('modal-cancel');
+            
+            // Implementação do modal customizado para substituir window.confirm
+            newButton.addEventListener('click', () => {
+                modalMessage.textContent = "Você tem certeza que deseja iniciar uma nova nota? O conteúdo atual será apagado.";
+                modal.classList.remove('hidden');
+
+                const confirmAction = () => {
+                    textarea.value = "";
+                    saveNote(""); // Salva vazio no DB
+                    document.getElementById('title-text').textContent = "Bloco de Notas";
+                    modal.classList.add('hidden');
+                    modalConfirm.removeEventListener('click', confirmAction);
+                    modalCancel.removeEventListener('click', cancelAction);
+                };
+
+                const cancelAction = () => {
+                    modal.classList.add('hidden');
+                    modalConfirm.removeEventListener('click', confirmAction);
+                    modalCancel.removeEventListener('click', cancelAction);
+                };
+
+                modalConfirm.addEventListener('click', confirmAction);
+                modalCancel.addEventListener('click', cancelAction);
+            });
+
+            saveButton.addEventListener('click', () => {
+                saveNote(textarea.value);
+            });
+        }
+        
+        // Inicia o processo
+        initializeFirebase();
+
+        // Expõe funções para o escopo global para acesso pelos menus
+        window.handleMenuAction = (action) => {
+            const textarea = document.getElementById('notepad-content');
+            if (!textarea) return;
+
+            // Simula ações comuns do Notepad
+            switch(action) {
+                case 'new':
+                    document.getElementById('menu-new').click();
+                    break;
+                case 'save':
+                    document.getElementById('menu-save').click();
+                    break;
+                case 'select-all':
+                    textarea.select();
+                    break;
+                case 'cut':
+                    document.execCommand('cut');
+                    break;
+                case 'copy':
+                    document.execCommand('copy');
+                    break;
+                case 'paste':
+                    document.execCommand('paste');
+                    break;
+                default:
+                    console.log(`Ação de menu '${action}' simulada.`);
+            }
+        };
+
+        // Lógica de UI para Menu Dropdown
+        window.toggleMenu = (menuId) => {
+            const menu = document.getElementById(menuId);
+            document.querySelectorAll('.menu-dropdown').forEach(m => {
+                if (m.id !== menuId) m.classList.add('hidden');
+            });
+            menu.classList.toggle('hidden');
+        };
+
+        // Fechar todos os menus ao clicar fora
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.menu-bar') && !e.target.closest('.menu-dropdown')) {
+                 document.querySelectorAll('.menu-dropdown').forEach(m => m.classList.add('hidden'));
+            }
+        });
+    </script>
+    <style>
+        /* Estilos Frutiger Aero */
+        .aero-bg {
+            /* Simulação de um papel de parede Aqua/Natureza com gradiente suave */
+            background: linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 50%, #80deea 100%);
+            font-family: 'Inter', sans-serif;
+        }
+        .aero-window {
+            /* Janela com cantos arredondados, sombra forte (soft glow) e borda clara */
+            border-radius: 0px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(135, 206, 250, 0.7); /* Sombra macia e glow azul */
+            border: 1px solid rgba(255, 255, 255, 0.6); 
+            /* Para um efeito mais real de vidro, usaria backdrop-filter, mas nem todos os ambientes suportam */
+        }
+        
+        /* Efeito Aero Glass para Barra de Título */
+        .aero-glass-title {
+            background: rgba(255, 255, 255, 0.8); 
+            background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.8) 0%, rgba(240, 240, 240, 0.6) 100%);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+            color: #000;
+        }
+
+        /* Efeito Aero Glass para Barra de Menu */
+        .aero-glass-menu {
+            background: rgba(240, 240, 240, 0.8);
+            background-image: linear-gradient(to bottom, rgba(240, 240, 240, 0.8) 0%, rgba(220, 220, 220, 0.6) 100%);
+            border-bottom: 1px solid rgba(200, 200, 200, 0.6);
+            color: #000;
+        }
+
+        /* Botões de Controle da Janela (Glossy Look) */
+        .aero-button {
+            /* Base do botão com gradiente (Brilho e Profundidade) */
+            background: linear-gradient(to top, #e0f0ff 0%, #ffffff 100%); 
+            border: 1px solid #c0d9e8;
+            color: #333;
+            transition: all 0.1s ease-in-out;
+            margin-left: 1px; /* Espaçamento sutil entre os botões */
+        }
+        .aero-button:hover {
+            background: linear-gradient(to top, #d0e0ff 0%, #f0f8ff 100%);
+            border-color: #99c2e0;
+        }
+        .aero-button-close {
+            /* Botão fechar em vermelho/laranja glossy */
+            background: linear-gradient(to top, #ff5f5f 0%, #ff8c8c 100%);
+            border: 1px solid #d45050;
+            color: white;
+            border-bottom-right-radius: 12px; /* Apenas o canto direito superior é arredondado */
+        }
+        .aero-button-close:hover {
+            background: linear-gradient(to top, #e81123 0%, #f77f7f 100%);
+        }
+
+        .aero-menu-item:hover {
+            /* Item de menu com seleção azul clássica */
+            background-color: #3399ff; 
+            color: #fff;
+        }
+        .menu-dropdown {
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            border: 1px solid #c0c0c0;
+            border-radius: 5px; /* Cantos levemente arredondados */
+            overflow: hidden;
+        }
+        textarea {
+            /* Área de texto - Sem borda, cor de fundo branca limpa */
+            resize: none;
+            line-height: 1.5;
+            font-size: 14px;
+            font-family: 'Inter', monospace; 
+            background-color: #fff;
+        }
+        /* Estilo para o modal (substitui window.confirm) */
+        .aero-modal-content {
+            background: linear-gradient(to bottom, #f0f8ff, #e0f0ff);
+            border: 1px solid #c0d9e8;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            border-radius: 0px;
+        }
+    </style>
+</head>
+<body class="aero-bg min-h-screen flex items-center justify-center p-4">
+
+    <!-- Janela do Bloco de Notas (Frutiger Aero Style) -->
+    <div class="aero-window w-full max-w-4xl h-[80vh] bg-white flex flex-col overflow-hidden">
+        
+        <!-- Barra de Título da Janela (Aero Glass) -->
+        <div class="aero-glass-title flex justify-between items-center h-8 text-sm select-none">
+            
+            <!-- Ícone e Título -->
+            <div class="flex items-center space-x-2 px-2">
+                <!-- Ícone simulado (Documento Aero) -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-blue-600">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+                <span id="title-text" class="font-medium">Bloco de Notas</span>
+            </div>
+
+            <!-- Botões de Controle da Janela (Aero Glossy) -->
+            <div class="flex h-full">
+                <button class="aero-button w-12 flex items-center justify-center transition-all duration-100 ease-in-out">
+                    <!-- Minimize -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+                <button class="aero-button w-12 flex items-center justify-center transition-all duration-100 ease-in-out">
+                    <!-- Maximize/Restore -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+                </button>
+                <button class="aero-button aero-button-close w-12 flex items-center justify-center transition-all duration-100 ease-in-out">
+                    <!-- Close -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Barra de Menu do Notepad (Aero Glass) -->
+        <div class="aero-glass-menu flex text-xs select-none relative">
+            
+            <!-- Menu 1: Arquivo -->
+            <div class="relative">
+                <button onclick="toggleMenu('menu-file')" class="menu-item p-1 px-3 hover:bg-blue-300 hover:text-white rounded-sm">Arquivo</button>
+                <div id="menu-file" class="menu-dropdown absolute top-full left-0 w-40 z-10 hidden">
+                    <button id="menu-new" class="block w-full text-left p-1 px-3 aero-menu-item">Novo</button>
+                    <div class="border-t border-gray-200 my-1"></div>
+                    <button id="menu-save" class="block w-full text-left p-1 px-3 aero-menu-item">Salvar (Auto)</button>
+                    <div class="border-t border-gray-200 my-1"></div>
+                    <a href="#" class="block w-full text-left p-1 px-3 aero-menu-item">Sair (Simulado)</a>
+                </div>
+            </div>
+
+            <!-- Menu 2: Editar -->
+            <div class="relative">
+                <button onclick="toggleMenu('menu-edit')" class="menu-item p-1 px-3 hover:bg-blue-300 hover:text-white rounded-sm">Editar</button>
+                <div id="menu-edit" class="menu-dropdown absolute top-full left-0 w-40 z-10 hidden">
+                    <button onclick="handleMenuAction('cut')" class="block w-full text-left p-1 px-3 aero-menu-item">Recortar</button>
+                    <button onclick="handleMenuAction('copy')" class="block w-full text-left p-1 px-3 aero-menu-item">Copiar</button>
+                    <button onclick="handleMenuAction('paste')" class="block w-full text-left p-1 px-3 aero-menu-item">Colar</button>
+                    <div class="border-t border-gray-200 my-1"></div>
+                    <button onclick="handleMenuAction('select-all')" class="block w-full text-left p-1 px-3 aero-menu-item">Selecionar Tudo</button>
+                </div>
+            </div>
+            
+            <!-- Menu 3: Formatar (Simulado) -->
+            <button onclick="handleMenuAction('format-menu')" class="menu-item p-1 px-3 hover:bg-blue-300 hover:text-white rounded-sm">Formatar</button>
+            <button onclick="handleMenuAction('view-menu')" class="menu-item p-1 px-3 hover:bg-blue-300 hover:text-white rounded-sm">Exibir</button>
+            <button onclick="handleMenuAction('help-menu')" class="menu-item p-1 px-3 hover:bg-blue-300 hover:text-white rounded-sm">Ajuda</button>
+
+        </div>
+
+        <!-- Área Principal de Edição de Texto -->
+        <textarea id="notepad-content" class="flex-grow p-4 border-0 focus:ring-0 focus:outline-none placeholder-gray-400" placeholder="Digite suas anotações aqui..."></textarea>
+        
+        <!-- Barra de Status (Aero Glass, mais discreto) -->
+        <div class="aero-glass-menu flex justify-end items-center h-6 text-[10px] px-2 text-gray-600">
+            Linha 1, Coluna 1
+        </div>
+
+    </div>
+    
+    <!-- Modal Customizado para Confirmação (Substitui window.confirm) -->
+    <div id="custom-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
+        <div class="aero-modal-content w-full max-w-sm p-6 text-gray-800">
+            <h3 class="text-lg font-bold mb-4">Confirmação</h3>
+            <p id="modal-message" class="mb-6"></p>
+            <div class="flex justify-end space-x-3">
+                <button id="modal-cancel" class="aero-button px-4 py-2 rounded-md font-semibold hover:border-blue-500">
+                    Cancelar
+                </button>
+                <button id="modal-confirm" class="aero-button px-4 py-2 rounded-md font-semibold bg-blue-500 text-black hover:bg-blue-600 border-blue-600">
+                    OK
+                </button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,79 @@
+/* arquivo com todos os estilos de botões */
+
+/* <link rel="stylesheet" href="styles/buttons.css"> */
+
+/* select,
+button {
+    font-family: Arial, Helvetica, sans-serif;
+    background: linear-gradient(to bottom, #fff 0, #e0e0e0 100%);
+    #E1E1E1
+    font-weight: normal;
+    width: 60%;
+    padding: 9px;
+    border: 1px solid #CCC;
+    box-sizing: border-box;
+    margin-bottom: 10px;
+    font-size: 13px;
+    border-radius: 4px;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+    color: #757575;
+} */
+
+.channel-container select,
+.channel-container button {
+    font-family: Arial, Helvetica, sans-serif;
+    background: linear-gradient(to bottom, #F7F7F7 0, #E1E1E1 100%);
+    font-weight: normal;
+    padding: 9px;
+    border: 1px solid #CCC;
+    box-sizing: border-box;
+    margin-bottom: 10px;
+    font-size: 13px;
+    border-radius: 4px;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+    color: #555555;
+}
+
+.channel-container input[type="text"],
+.channel-container textarea,
+.channel-container input[type="number"],
+.channel-container input[type="color"] {
+    font-family: Arial, Helvetica, sans-serif;
+    background-color: white;
+    font-weight: normal;
+    width: 60%;
+    padding: 9px;
+    border: 1px solid #CCC;
+    box-sizing: border-box;
+    margin-bottom: 10px;
+    font-size: 13px;
+    border-radius: 4px;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+    color: #757575;
+}
+
+.submit {
+    background-color: #DD4B39; 
+    background-image: linear-gradient(to bottom, #DD4B39, #C53727);
+    border: 1px solid #C53727;
+}
+.submit:hover {
+    background-color: #C53727;
+    background-image: linear-gradient(to bottom, #C53727, #AF3223);
+}
+
+.channel-container button:focus {
+    outline: none;
+}
+
+.channel-container input:focus {
+    outline: none;
+}
+
+.channel-container textarea:focus {
+    outline: none;
+}
+
+.channel-container select:focus {
+    outline: none;
+}

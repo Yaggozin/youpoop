@@ -1,0 +1,29 @@
+RewriteEngine On
+
+# 1. Impede o acesso direto ao arquivo .php (opcional, mas recomendado)
+# Se alguém tentar acessar /watch.php, ele redireciona para /watch
+RewriteCond %{THE_REQUEST} ^[A-Z]{3,9}\ /([^/]+)\.php\ HTTP/
+RewriteRule ^(.+)\.php$ /$1 [R=301,L]
+
+# 2. Faz o servidor procurar internamente o arquivo .php quando você acessa sem a extensão
+# Exemplo: /watch?v=123 -> internamente carrega watch.php?v=123
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}\.php -f
+RewriteRule ^([^/]+)$ $1.php [L,QSA]
+
+# Quando uma página não for encontrada, carrega seu arquivo personalizado
+ErrorDocument 404 /youpoop/404.php
+
+# Impede que o navegador liste os arquivos de uma pasta que não tem index.php
+Options -Indexes
+
+# 1. Links de Canais: youpoop.com/user/Yahgo -> channel.php?user=Yahgo
+RewriteRule ^user/([^/]+)$ channel.php?user=$1 [L,QSA]
+
+# 2. Links de Vídeos: youpoop.com/watch?v=123 -> watch.php?v=123
+RewriteRule ^watch$ watch.php [L,QSA]
+
+# 3. Remover .php de todas as outras páginas
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}\.php -f
+RewriteRule ^([^/]+)$ $1.php [L,QSA]

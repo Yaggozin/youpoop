@@ -1,0 +1,52 @@
+.alert {
+    width: 970px;
+    justify-self: center;
+    font-weight: bolder;
+    text-shadow: 0 -1px #00000096;
+    padding: 15px;
+    margin: 13px auto;
+    font-size: 84%;
+    color: white;
+    text-align: center;
+    -webkit-box-shadow: 0 1px 2px rgba(0,0,0,.5),inset 0 0 1px rgba(0,0,0,.2);
+    box-shadow: 0 1px 2px rgba(0,0,0,.5),inset 0 0 1px rgba(0,0,0,.2);
+    -moz-border-radius: 3px;
+    -webkit-border-radius: 3px;
+    border-radius: 3px;
+}
+
+.alert-icon {
+    background-size: auto;
+    width: 7px;
+    height: 21px;
+    vertical-align: middle;
+    cursor: auto;
+    /* margin-right: 15px; */
+    float: inline-start;
+    transform: translate(0px, -3px);
+}
+
+.alert img {
+    background: url('images/exclamacao_icon.png');
+}
+
+.alert {
+    background-color: rgb(145, 61, 55);
+    background-image: linear-gradient(rgb(201, 81, 69) 0px, rgb(145, 61, 55) 45px);
+}
+
+.alert-info {
+    background-color: #6683b3;
+    filter: progid:DXImageTransform.Microsoft.Gradient(GradientType=0,StartColorStr=#849fc2,EndColorStr=#6683b3);
+    background-image: -moz-linear-gradient(top,#849fc2 0,#6683b3 100%);
+    background-image: -ms-linear-gradient(top,#849fc2 0,#6683b3 100%);
+    background-image: -o-linear-gradient(top,#849fc2 0,#6683b3 100%);
+    background-image: -webkit-gradient(linear,left top,left bottom,color-stop(0,#849fc2),color-stop(100%,#6683b3));
+    background-image: -webkit-linear-gradient(top,#849fc2 0,#6683b3 100%);
+    background-image: linear-gradient(to bottom,#849fc2 0,#6683b3 100%);
+}
+
+<div class="alert alert-info"> (o alert-info é uma das cores do alerta dependendo de que o alerta esta falando)
+    <img class="alert-icon" src="//web.archive.org/web/20120217010944im_/http://s.ytimg.com/yt/img/pixel-vfl3z5WfW.gif"></img>
+    Voce não está logado ainda, faça o login e habilite novas funções para sua conta.
+</div>

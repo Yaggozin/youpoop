@@ -202,6 +202,7 @@ $video_count = count($channel_videos);
   <meta charset="UTF-8">
   <title>YouPoop™ - Your Account</title>
   <link rel="shortcut icon" href="images/youpoophd/favicon/favicon_16x16.png" type="image/x-icon">
+  <link rel="stylesheet" href="styles/header.css">
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -229,29 +230,6 @@ $video_count = count($channel_videos);
       position: absolute;
     }
 
-    header {
-      background: linear-gradient(to bottom, #ffffff, #dddddd);
-      border-bottom: 1px solid #aaa;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 16px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-
-    .header-buttons {
-      display: flex;
-      gap: 10px;
-    }
-
-    .header-buttons button {
-      padding: 6px 12px;
-      border: 1px solid #ccc;
-      background: linear-gradient(to bottom, #ffffff, #e6e6e6);
-      cursor: pointer;
-      border-radius: 2px;
-    }
-
     .sections-buttons button {
       position: absolute;
       top: 160px;
@@ -272,17 +250,6 @@ $video_count = count($channel_videos);
   
     .sections-buttons:hover {
       border: 1px solid #4171b4;
-    }
-
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .logo img {
-      height: 30px;
-      filter: drop-shadow(0px 0px 1px black);
     }
 
     main {
@@ -403,6 +370,7 @@ $video_count = count($channel_videos);
 
     .video-duration {
       position: absolute;
+      opacity: 80%;
       bottom: 29px;
       right: 1px;
       background: linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0.4));
@@ -584,6 +552,95 @@ $video_count = count($channel_videos);
       top: 5px;
     }
 
+    /* --- ESTILO DA CAIXA DE MENSAGEM --- */
+
+    .no-video-message-box {
+        /* Define o posicionamento para que o ::before possa ser posicionado em relação a ele */
+        position: relative; 
+
+        border-radius: 12px; /* Ajuste para o arredondamento que você desejar */
+
+        /* GRADIENTE DE DUAS CORES E LINHA HORIZONTAL */
+        /* A cor mais clara (fundo) vai até 20px, depois a cor original continua */
+        /* Você pode ajustar o 20px para mudar a altura do "cabeçalho" claro */
+        background: linear-gradient(to bottom, 
+                                    #f7e9c9 0%,       /* Cor de topo mais clara */
+                                    #f7e9c9 10px,     /* Mantém a cor clara até 20px */
+                                    #ebd290 22px,     /* Cor de baixo original */
+                                    #ebd290 100%
+                                    );
+        
+        /* Recria os estilos da sua mensagem */
+        box-shadow: 0px 0px 2px 0px #00000070; 
+        text-shadow: 0 0 1px #00000078;
+        width: 211px;
+        height: 87px;
+        padding: 4px;
+        text-align: center;
+        
+        /* 3. Borda interna/Destaque */
+        box-shadow: 
+            inset 0 1px 0 rgba(255, 255, 255, 0.6), /* Luz interna superior */
+            inset 0 -1px 0 rgba(0, 0, 0, 0.2),      /* Sombra interna inferior */
+            inset 0 0 0 1px rgba(0, 0, 0, 0.1),     /* Borda interna fina escura */
+            inset 0 0 0 2px rgba(255, 255, 255, 0.3), /* Borda interna fina clara */
+            0 0 5px rgba(0, 0, 0, 0.3); /* Sombra externa (repetido para clareza, pode ser removido se já tiver um principal) */
+    }
+
+    .no-video-message-content {
+        /* tem nada aqui */
+    }
+
+
+    /* --- CRIAÇÃO DA PONTA AFIADA (A verdadeira mágica) --- */
+
+    .no-video-message-box::before {
+        content: ""; /* Essencial para pseudo-elementos */
+        position: absolute;
+        
+        /* Posiciona a ponta no canto superior esquerdo */
+        top: 50%;
+        left: -11px; /* Ajusta o elemento para fora da caixa (10px do triângulo + 1px da borda) */
+        transform: translateY(-50%); /* Centraliza verticalmente */
+        
+        /* Cria o triângulo usando bordas */
+        width: 0; 
+        height: 0; 
+
+        
+        /* A ponta de 10px: A borda direita forma o triângulo */
+        border-top: 10px solid transparent; 
+        border-bottom: 10px solid transparent;
+        
+        /* CORPO: A cor de fundo da sua caixa */
+        border-right: 10px solid #ceba83;; 
+    }
+
+    /* --- BORDA DA PONTA (opcional, para um visual mais limpo) --- */
+
+    .no-video-message-box::after {
+        content: "";
+        position: absolute;
+        
+        /* Posiciona a borda um pixel para fora do corpo principal da ponta */
+        top: 50%;
+        left: -12px; 
+        transform: translateY(-50%);
+        
+        width: 0;
+        height: 0;
+        
+        /* A borda cinza (1px mais larga) */
+        border-top: 11px solid transparent; 
+        border-bottom: 11px solid transparent;
+        border-right: 11px solid #ddd; /* A cor da borda da sua caixa */
+        
+        /* Garante que a borda fique atrás do corpo da ponta */
+        z-index: -1; 
+        filter: drop-shadow(-1px 1px 1px #00000034);
+    }
+
+
     footer {
       background: linear-gradient(to bottom, #f1f1f1, #d3d3d3);
       border-top: 1px solid #ccc;
@@ -661,7 +718,7 @@ $video_count = count($channel_videos);
                   <?php if ($is_subscribed): ?>
                       <span class="button-text">Inscrito</span>
                   <?php else: ?>
-                      <img src="https://cdn-icons-png.flaticon.com/512/32/32339.png" alt="Plus Icon">
+                      <img src="images/youpoophd/account/buttons/circle.png" alt="Plus Icon">
                       <span class="button-text">Inscrever-se</span>
                   <?php endif; ?>
                   
@@ -691,14 +748,16 @@ $video_count = count($channel_videos);
                         </p>
                         
                         <span class="video-duration">
-                            00:<?php echo htmlspecialchars($featured_video['duration']); ?>
+                            <?php echo htmlspecialchars($featured_video['duration']); ?>
                         </span>
                         <p class="video-views"><?php echo number_format($featured_video['views'], 0, ',', '.'); ?> Views</p>
                     </div>
                 </div>
             <?php else: ?>
-                <div class="no-video-message" style="padding: 20px; text-align: center; border: 1px solid #ddd; background-color: #f9f9f9;">
-                    <p>Este canal ainda não definiu um vídeo de destaque.</p>
+                <div class="no-video-message-box">
+                    <div class="no-video-message-content">
+                        <p>Este canal ainda não postou nenhum vídeo recentemente para nos destacarmos.</p>
+                    </div>
                 </div>
             <?php endif; ?>
         </div>

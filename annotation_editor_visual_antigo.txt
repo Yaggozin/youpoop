@@ -1,0 +1,1158 @@
+<?php
+// Certifique-se de iniciar a sessão se estiver usando autenticação por sessão
+session_start();
+
+// --- CONFIGURAÇÃO DO BANCO DE DADOS ---
+$host = 'localhost';
+$db   = 'ytp_db';
+$user = 'root';
+$pass = '';
+
+try {
+    $pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8", $user, $pass);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        sendJson('error', 'Erro de conexão SQL: ' . $e->getMessage()); // Usando a função corrigida
+    }
+    die("Erro de conexão: " . $e->getMessage());
+}
+
+// Função para retornar JSON e encerrar (Helper para requisições AJAX)
+function sendJson($status, $message, $extra = []) {
+    header('Content-Type: application/json');
+    echo json_encode(array_merge(['status' => $status, 'message' => $message], $extra));
+    exit;
+}
+
+// ==============================================================================
+// 🎯 AUTENTICAÇÃO E CONFIGURAÇÃO DO VÍDEO
+// ==============================================================================
+
+// 🚨 LÓGICA DE USUÁRIO LOGADO: 
+// PARA USO EM PRODUÇÃO, SUBSTITUA O '1' POR: $_SESSION['user_id'] ?? null;
+$loggedInUserId = $_SESSION['user_id'];
+
+// Obtém o ID do vídeo da URL, garantindo que seja um inteiro válido.
+$video_id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+
+// Verifica se o ID do vídeo é válido
+if (!$video_id) {
+    die("ID de vídeo inválido ou ausente. Acesse com '?id=ID_DO_VIDEO'.");
+}
+
+// --- BACKEND: PROCESSAMENTO DE AJAX (SALVAR/EXCLUIR) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    $input = json_decode(file_get_contents('php://input'), true);
+    $action = $input['action'] ?? '';
+
+    // Uma checagem de segurança completa incluiria a verificação do user_id do vídeo 
+    // antes de permitir a operação POST, mas mantemos o foco na permissão inicial.
+
+    if ($action === 'save') {
+        try {
+            // Define uma cor padrão caso não venha no input
+            $color = $input['color'] ?? '#000000';
+            // NOVO: Define o tamanho da fonte
+            $fontSize = $input['font_size'] ?? '14px'; 
+            // CORREÇÃO 2: Conversão explícita para float. Essencial para garantir precisão e tipo correto no DB (Decimal).
+            $x_pos = floatval($input['x_pos']);
+            $y_pos = floatval($input['y_pos']);
+            $width = floatval($input['width']);
+            $height = floatval($input['height']);
+            $start = floatval($input['start_time_sec']);
+            $end = floatval($input['end_time_sec']);
+
+            if (!empty($input['id'])) {
+                // UPDATE
+                // NOVO: Adicionado 'font_size=?' no SET
+                $stmt = $pdo->prepare("UPDATE annotations SET video_id=?, type=?, text_content=?, start_time_sec=?, end_time_sec=?, x_pos=?, y_pos=?, width=?, height=?, link_url=?, color=?, font_size=? WHERE id=?");
+                $stmt->execute([
+                    $input['video_id'], $input['type'], $input['text_content'], 
+                    $start, $end, $x_pos, $y_pos, $width, $height, // Usa variáveis float
+                    $linkUrl, $color, $fontSize, $input['id']
+                ]);
+                sendJson('success', 'Atualizado com sucesso', ['id' => $input['id']]);
+            } else {
+                // INSERT
+                $stmt = $pdo->prepare("INSERT INTO annotations (video_id, type, text_content, start_time_sec, end_time_sec, x_pos, y_pos, width, height, link_url, color, font_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([
+                    $input['video_id'], $input['type'], $input['text_content'], 
+                    $start, $end, $x_pos, $y_pos, $width, $height, // Usa variáveis float
+                    $linkUrl, $color, $fontSize
+                ]);
+                sendJson('success', 'Criado com sucesso', ['id' => $pdo->lastInsertId()]);
+            }
+        } catch (Exception $e) {
+            sendJson('error', 'Erro SQL: ' . $e->getMessage());
+        }
+            } else {
+                // INSERT
+                // NOVO: Adicionado 'font_size' na lista de colunas
+                $stmt = $pdo->prepare("INSERT INTO annotations (video_id, type, text_content, start_time_sec, end_time_sec, x_pos, y_pos, width, height, link_url, color, font_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([
+                    $input['video_id'], $input['type'], $input['text_content'], 
+                    $input['start_time_sec'], $input['end_time_sec'], 
+                    $input['x_pos'], $input['y_pos'], $input['width'], $input['height'], 
+                    $input['link_url'], $color, $fontSize // NOVO: Adicionado $fontSize
+                ]);
+                echo json_encode(['status' => 'success', 'message' => 'Criado com sucesso', 'id' => $pdo->lastInsertId()]);
+            }
+        } catch (Exception $e) {
+            echo json_encode(['status' => 'error', 'message' => 'Erro SQL: ' . $e->getMessage()]);
+        }
+    } elseif ($action === 'delete') {
+        if (!empty($input['id'])) {
+            $stmt = $pdo->prepare("DELETE FROM annotations WHERE id = ?");
+            $stmt->execute([$input['id']]);
+            echo json_encode(['status' => 'success', 'message' => 'Deletado com sucesso']);
+        }
+    }
+    exit;
+}
+
+// --- FRONTEND: CARREGAMENTO DA PÁGINA (MODIFICADO) ---
+
+// 1. Busca os dados do vídeo e o user_id do criador
+$stmtVideo = $pdo->prepare("SELECT title, video_path, user_id FROM videos WHERE id = ?");
+$stmtVideo->execute([$video_id]);
+$video = $stmtVideo->fetch(PDO::FETCH_ASSOC);
+
+if (!$video) die("Vídeo não encontrado.");
+
+// 2. 🚨 VERIFICAÇÃO DE AUTORIZAÇÃO 🚨
+// Verifica se há um usuário logado e se ele é o criador do vídeo.
+if ($loggedInUserId === null || $video['user_id'] != $loggedInUserId) {
+    die("Acesso negado. Você não é o criador deste vídeo."); // CORREÇÃO: Tratamento de acesso negado mais explícito.
+}
+
+// 3. Busca as anotações existentes (se o acesso for permitido)
+$stmtAnnos = $pdo->prepare("SELECT * FROM annotations WHERE video_id = ?");
+$stmtAnnos->execute([$video_id]);
+$existingAnnotations = $stmtAnnos->fetchAll(PDO::FETCH_ASSOC);
+?>
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Editor Real - <?php echo htmlspecialchars($video['title']); ?></title>
+    <style>
+        body {
+            font-family: Roboto, Arial, sans-serif;
+            background-color: #f1f1f1;
+            color: #222;
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* Adicionando a barra superior do YouTube 2014 */
+        .header-bar {
+            background-color: #fff;
+            border-bottom: 1px solid #d3d3d3;
+            padding: 10px 20px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header-bar h1 {
+            font-size: 18px;
+            font-weight: 500;
+            margin: 0;
+            color: #333;
+        }
+        .header-bar .btn-publish {
+            background-color: #4d90fe; 
+            color: white; 
+            border-color: #3079ed; 
+            font-weight: bold;
+            text-transform: none;
+        }
+        .header-bar .btn-publish:hover { background-color: #3079ed; }
+
+        .editor-container {
+            box-sizing: border-box;
+            width: 1170px;
+            margin: 20px auto;
+            padding: 0;
+            overflow: hidden;
+            display: flex; /* Usar flex para side-by-side */
+            gap: 20px;
+        }
+        
+        .video-section {
+            flex: 1; /* Ocupa o espaço restante */
+            min-width: 800px;
+            flex-direction: column;
+            align-items: center;
+            background-color: #fff;
+            border: 1px solid #d3d3d3;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .video-section h2 {
+            font-size: 16px;
+            font-weight: normal;
+            margin: 0 0 15px 0;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .controls-section {
+            width: 300px; /* Largura fixa para a barra lateral */
+            padding: 20px;
+            background-color: #fff;
+            border: 1px solid #d3d3d3;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            box-sizing: border-box;
+            height: fit-content;
+        }
+
+        .video-wrapper {
+            position: relative;
+            width: 800px;
+            height: 450px;
+            background-color: #000;
+            border: 2px solid #333;
+            margin-bottom: 0; /* Remove margem para a timeline encostar */
+        }
+        .video-player { width: 100%; height: 100%; }
+
+        /* --- NOVOS ESTILOS DA TIMELINE --- */
+        .video-timeline {
+            margin-top: 10px;
+            /* background: #f1f1f1; Não é necessário, mas útil para debug */
+            width: 100%;
+        }
+
+        .timeline-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 5px;
+            margin-bottom: 5px;
+        }
+        
+        .timeline-track-wrapper {
+            background-color: #333; /* Fundo escuro */
+            padding: 10px 5px 5px 5px;
+        }
+
+        .timeline-track {
+            position: relative;
+            height: 30px; /* Altura da área das barras */
+            background-color: #000;
+            border: 1px solid #666;
+            margin-bottom: 5px;
+            box-sizing: content-box;
+        }
+
+        .annotation-bars-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+        }
+
+        .timeline-annotation-bar {
+            position: absolute;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.4); /* Retângulo branco com transparência */
+            border-right: 1px solid #333; 
+            cursor: pointer;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            padding: 0 5px;
+            font-size: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #000;
+            font-weight: bold;
+        }
+
+        .timeline-annotation-bar:hover {
+            background-color: rgba(255, 255, 255, 0.6);
+        }
+
+        .timeline-annotation-bar.selected-bar {
+            border: 2px solid #00FF00; /* Destaque verde */
+            background-color: #fff;
+            z-index: 11;
+        }
+
+        .playhead {
+            position: absolute;
+            top: -5px;
+            bottom: -5px;
+            width: 2px;
+            background-color: #e74c3c; /* Linha vermelha */
+            z-index: 20;
+            pointer-events: none; 
+            transition: left 0.1s linear;
+        }
+
+        .timeline-ruler {
+            position: relative;
+            height: 15px;
+            color: #aaa;
+            font-size: 10px;
+        }
+
+        .timeline-ruler span {
+            position: absolute;
+            transform: translateX(-50%);
+            border-left: 1px solid #666;
+            padding-left: 3px;
+        }
+        /* --- FIM ESTILOS DA TIMELINE --- */
+
+
+        /* Estilo da Anotação no Player */
+        .editable-annotation {
+            position: absolute;
+            padding: 5px;
+            border: 2px solid transparent;
+            cursor: move;
+            z-index: 20;
+            resize: both; 
+            overflow: hidden;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            user-select: none;
+            background-color: transparent;
+            color: white; 
+            transition: none; 
+        }
+
+        #currentTime {
+            font-size: 13px;
+            color: #606060;
+            margin-bottom: 0; /* Ajuste para o flex */
+        }
+        
+        /* Estilos específicos de forma (Type) */
+        .annotation-speech { border-radius: 10px 10px 0 10px; }
+        .annotation-note { /* Quadrado padrão */ }
+        .annotation-title { background: none !important; font-size: 24px; color: #fff !important; border: none;}
+        .annotation-spotlight { background-color: transparent !important; border: 2px solid #fff !important; color: transparent !important; }
+        
+        /* Classe para quando a anotação é selecionada */
+        .is-selected {
+            outline: 2px dashed #00FF00; 
+            box-shadow: 0 0 10px rgba(0,255,0,0.5);
+        }
+
+        /* Formulário e Controles */
+        .annotation-form input, .annotation-form textarea, .annotation-form select {
+            width: 100%;
+            padding: 6px;
+            margin-bottom: 10px;
+            border: 1px solid #d9d9d9;
+            box-sizing: border-box;
+            background-color: #fff;
+            font-size: 13px;
+            font-family: Roboto, Arial;
+        }
+        .time-group, .size-group { display: flex; gap: 5px; margin-bottom: 10px; }
+        .time-group input, .size-group input { flex: 1; }
+        
+        .color-palette { display: flex; gap: 10px; margin-bottom: 15px; }
+        .color-swatch {
+            width: 30px; height: 30px;
+            cursor: pointer;
+            border: 2px solid #ddd;
+            transition: all 0.1s;
+        }
+        .color-swatch.active { border: 3px solid #333; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+
+        .btn {
+            padding: 8px 12px;
+            border: 1px solid #d3d3d3;
+            cursor: pointer;
+            color: #606060;
+            margin-right: 5px;
+            border-radius: 2px;
+            background-color: #f8f8f8;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        .btn-save { background-color: #4d90fe; color: white; border-color: #3079ed; text-transform: none;}
+        .btn-del { text-transform: none; }
+        .btn-add {
+            color: #606060;
+            border-color: #d3d3d3;
+            font-weight: normal;
+            text-transform: none;
+        }
+
+        .controls-section h3 {
+            font-size: 14px;
+            font-weight: bold;
+            margin: 0 0 15px 0;
+            color: #606060;
+        }
+
+        .hr2 {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            margin: 0 0 15px 0;
+        }
+        
+        label {
+            font-size: 11px;
+            font-weight: bold;
+            color: #606060;
+            display: block;
+            margin-bottom: 3px;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #eee;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header-bar">
+    <h1><?php echo htmlspecialchars($video['title']); ?></h1>
+    <div style="display: flex; gap: 10px;">
+        <button class="btn" style="color: #606060; background-color: #fff; border: none; font-weight: normal;">Salvo</button>
+        <button class="btn btn-publish" onclick="saveData()">Publicar</button>
+    </div>
+</div>
+
+<div class="editor-container">
+    <div class="video-section">
+        <h2>Editor de Anotações: <?php echo htmlspecialchars($video['title']); ?></h2>
+        <div class="video-wrapper" id="videoWrapper">
+            <video id="mainVideo" class="video-player" controls>
+                <source src="<?php echo htmlspecialchars($video['video_path']); ?>" type="video/mp4">
+            </video>
+        </div>
+        
+        <div class="video-timeline">
+            <div class="timeline-controls">
+                <span id="currentTime">00:00.00</span>
+            </div>
+
+            <div class="timeline-track-wrapper">
+                <div id="timelineTrack" class="timeline-track">
+                    <div id="timelineAnnotationBars" class="annotation-bars-container">
+                        </div>
+                    <div id="playhead" class="playhead"></div>
+                </div>
+                <div class="timeline-ruler">
+                    <span style="left: 0%;">0:00</span>
+                    <span style="left: 25%;">0:05</span>
+                    <span style="left: 50%;">0:10</span>
+                    <span style="left: 75%;">0:15</span>
+                    <span style="left: 100%;">0:20</span> 
+                </div>
+            </div>
+        </div>
+        </div>
+
+    <div class="controls-section">
+
+        <button class="btn btn-add" onclick="createNewAnnotation()">+ Adicionar anotação</button>
+
+        <hr>
+
+        <h3>Propriedades</h3>
+        <div id="noSelectionMsg" style="font-size: 13px;">Selecione ou crie uma anotação.</div>
+        
+        <form id="annoForm" class="annotation-form" style="display:none;">
+            <input type="hidden" id="annoId">
+            <input type="hidden" id="annoColor" value="#000000"> 
+            
+            <label>Texto da Anotação:</label>
+            <textarea id="annoText" rows="3"></textarea>
+
+            <label>Cor de Fundo:</label>
+            <div class="color-palette" id="colorPalette">
+                   <div class="color-swatch" style="background-color: #3498db;" data-color="#3498db" onclick="selectColor(this)"></div>
+                   <div class="color-swatch" style="background-color: #2ecc71;" data-color="#2ecc71" onclick="selectColor(this)"></div>
+                   <div class="color-swatch" style="background-color: #e74c3c;" data-color="#e74c3c" onclick="selectColor(this)"></div>
+                   <div class="color-swatch" style="background-color: #f1c40f;" data-color="#f1c40f" onclick="selectColor(this)"></div>
+                   <div class="color-swatch" style="background-color: #000000;" data-color="#000000" onclick="selectColor(this)"></div>
+                   <div class="color-swatch" style="background-color: #FFFFFF;" data-color="#FFFFFF" onclick="selectColor(this)"></div>
+            </div>
+
+            <label>Tipo:</label>
+            <select id="annoType">
+                <option value="note">Nota</option>
+                <option value="speech">Balão de Fala</option>
+                <option value="title">Título</option>
+                <option value="spotlight">Destaque</option>
+            </select>
+            
+            <label>Tamanho do Texto (px):</label>
+            <input type="number" id="annoFontSize" min="8" max="72" value="14"> 
+            <label>Início (Min : Seg):</label>
+            <div class="time-group">
+                <input type="number" id="startMin" min="0" value="0">
+                <input type="number" id="startSec" min="0" max="59.99" step="0.01" value="0.00">
+            </div>
+
+            <label>Fim (Min : Seg):</label>
+            <div class="time-group">
+                <input type="number" id="endMin" min="0" value="0">
+                <input type="number" id="endSec" min="0" max="59.99" step="0.01" value="0.00">
+            </div>
+            
+            <hr>
+            
+            <label>Posição (%):</label>
+            <div class="size-group">
+                <input type="number" step="0.01" id="annoX" placeholder="X" min="0">
+                <input type="number" step="0.01" id="annoY" placeholder="Y" min="0">
+            </div>
+
+            <label>Tamanho (%):</label>
+            <div class="size-group">
+                <input type="number" step="0.01" id="annoWidth" placeholder="Largura" min="1">
+                <input type="number" step="0.01" id="annoHeight" placeholder="Altura" min="1">
+            </div>
+            
+            <hr>
+
+            <label>Link (URL):</label>
+            <input type="text" id="annoLink" placeholder="http://...">
+
+            <button type="button" class="btn btn-save" onclick="saveData()">Salvar alterações</button>
+            <button type="button" class="btn btn-del" onclick="deleteData()">Excluir</button>
+        </form>
+    </div>
+</div>
+<script>
+    // --- DADOS E VARIÁVEIS ---
+    const dbAnnotations = <?php echo json_encode($existingAnnotations); ?>;
+    // MODIFICADO: Agora usa o $video_id obtido da URL
+    const videoId = <?php echo $video_id; ?>;
+
+
+
+    const video = document.getElementById('mainVideo');
+    const wrapper = document.getElementById('videoWrapper');
+    const form = document.getElementById('annoForm');
+    const noSelMsg = document.getElementById('noSelectionMsg');
+    
+    // NOVAS VARIÁVEIS DE TIMELINE
+    const timelineAnnotationBarsContainer = document.getElementById('timelineAnnotationBars');
+    const playhead = document.getElementById('playhead');
+    let videoDuration = 0; // Será definido ao carregar o vídeo
+
+    let selectedElement = null; 
+    let isDragging = false;
+    let dragStartX, dragStartY;
+    let initialLeftPercent, initialTopPercent;
+
+    const INPUT_IDS = { X: 'annoX', Y: 'annoY', WIDTH: 'annoWidth', HEIGHT: 'annoHeight' }; // NOVO: Mapeamento de IDs
+
+    // --- FUNÇÕES DE AJUDA ---
+
+    function resetForm() {
+        if (selectedElement) selectedElement.classList.remove('is-selected');
+        selectedElement = null;
+        form.style.display = 'none';
+        noSelMsg.style.display = 'block';
+        highlightTimelineBar(null); // Desmarca barra da timeline
+    }
+
+    function timeToSeconds(min, sec) { return (parseFloat(min || 0) * 60) + parseFloat(sec || 0); }
+    function secondsToTime(totalSec) {
+        totalSec = parseFloat(totalSec);
+        const min = Math.floor(totalSec / 60);
+        const sec = (totalSec % 60).toFixed(2);
+        return { min, sec };
+    }
+
+    /**
+     * Converte HEX para RGBA com transparência fixa de 50% (0.5).
+     */
+    function hexToRgba(hex, alpha = 0.5) {
+        const h = hex.replace('#', '');
+        const r = parseInt(h.substring(0, 2), 16);
+        const g = parseInt(h.substring(2, 4), 16);
+        const b = parseInt(h.substring(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    // --- LÓGICA DE CORES E FORMULÁRIO ---
+    
+    function selectColor(swatch) {
+        if (!selectedElement) return;
+
+        document.querySelectorAll('.color-swatch').forEach(el => el.classList.remove('active'));
+        swatch.classList.add('active');
+
+        const colorHex = swatch.getAttribute('data-color');
+        
+        document.getElementById('annoColor').value = colorHex;
+        
+        applyColorToElement(selectedElement, colorHex);
+    }
+
+    // Adicionado: Função para atualizar a cor baseada no tipo (title/spotlight/note)
+    function applyColorToElement(el, colorHex) {
+        const type = el.dataset.type || document.getElementById('annoType').value; 
+        
+        if (type !== 'title' && type !== 'spotlight') {
+            const colorRgba = hexToRgba(colorHex, 0.5);
+            el.style.backgroundColor = colorRgba;
+            
+            // Lógica para cor de texto contrastante
+            if (colorHex.toLowerCase() === '#f1c40f' || colorHex.toLowerCase() === '#ffffff') {
+                el.style.color = 'black';
+            } else {
+                el.style.color = 'white';
+            }
+        } else {
+             el.style.backgroundColor = 'transparent';
+             if (type === 'title') {
+                 el.style.color = '#fff';
+             } else if (type === 'spotlight') {
+                 el.style.color = 'transparent'; // O texto some no destaque
+                 el.style.borderColor = colorHex; // A cor define a borda
+             }
+        }
+        el.dataset.color = colorHex;
+    }
+
+    function updatePaletteUI(colorHex) {
+        document.querySelectorAll('.color-swatch').forEach(swatch => {
+            swatch.classList.remove('active');
+            if (swatch.getAttribute('data-color').toLowerCase() === colorHex.toLowerCase()) {
+                swatch.classList.add('active');
+            }
+        });
+        document.getElementById('annoColor').value = colorHex;
+    }
+
+    function updateFontSize(e) {
+        if (!selectedElement) return;
+        const size = parseFloat(e.target.value) || 14; 
+        
+        selectedElement.style.fontSize = size + 'px';
+        selectedElement.dataset.fontSize = size + 'px';
+    }
+
+
+    // --- LÓGICA DA TIMELINE ---
+    
+    /**
+     * Renderiza os retângulos de anotação na timeline com base na duração do vídeo.
+     */
+    function renderTimelineAnnotations() {
+        if (videoDuration === 0) return;
+        
+        timelineAnnotationBarsContainer.innerHTML = ''; 
+
+        // Seleciona todos os elementos de anotação na tela
+        const currentAnnotations = wrapper.querySelectorAll('.editable-annotation');
+        
+        currentAnnotations.forEach(el => {
+            const startTime = parseFloat(el.dataset.start);
+            const endTime = parseFloat(el.dataset.end);
+            const textContent = el.innerText || 'Annotation';
+            
+            if (isNaN(startTime) || isNaN(endTime) || startTime >= endTime) return;
+
+            // Calcula posição e largura como porcentagem
+            const startPercent = (startTime / videoDuration) * 100;
+            const durationPercent = ((endTime - startTime) / videoDuration) * 100;
+            
+            const bar = document.createElement('div');
+            bar.className = 'timeline-annotation-bar';
+            
+            // Adiciona classe de seleção se o elemento estiver selecionado
+            if (el.classList.contains('is-selected')) {
+                bar.classList.add('selected-bar');
+            }
+            
+            bar.style.left = `${startPercent}%`;
+            bar.style.width = `${durationPercent}%`;
+            
+            // Atribui o texto e dataset para mapeamento
+            bar.innerText = textContent.length > 20 ? textContent.substring(0, 17) + '...' : textContent;
+            bar.dataset.elementId = el.id; // Usa o ID (temporário ou DB ID)
+
+            // Evento de clique para selecionar a anotação
+            bar.addEventListener('click', (e) => {
+                e.stopPropagation(); 
+                selectAnnotation(el); 
+            });
+            
+            timelineAnnotationBarsContainer.appendChild(bar);
+        });
+    }
+    
+    /**
+     * Destaca a barra de anotação correspondente na timeline.
+     */
+    function highlightTimelineBar(el) {
+        document.querySelectorAll('.timeline-annotation-bar').forEach(b => b.classList.remove('selected-bar'));
+        if (el) {
+            const bar = timelineAnnotationBarsContainer.querySelector(`[data-element-id="${el.id}"]`);
+            if (bar) bar.classList.add('selected-bar');
+        }
+    }
+
+
+    // --- FUNÇÕES CORE (MODIFICADAS) ---
+
+    function updateFormPositionAndSize(el) {
+        const containerRect = wrapper.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+
+        const x = ((elRect.left - containerRect.left) / containerRect.width) * 100;
+        const y = ((elRect.top - containerRect.top) / containerRect.height) * 100;
+        const width = (elRect.width / containerRect.width) * 100;
+        const height = (elRect.height / containerRect.height) * 100;
+
+        document.getElementById(INPUT_IDS.X).value = x.toFixed(2);
+        document.getElementById(INPUT_IDS.Y).value = y.toFixed(2);
+        document.getElementById(INPUT_IDS.WIDTH).value = width.toFixed(2);
+        document.getElementById(INPUT_IDS.HEIGHT).value = height.toFixed(2);document.getElementById(INPUT_IDS.X).value = x;
+    }
+
+    function updateVisualsFromInput(e) {
+        if (!selectedElement) return; 
+        const getValue = (id) => parseFloat(document.getElementById(id).value) || 0;
+        const targetId = e.target.id;
+
+        if (targetId === INPUT_IDS.WIDTH || targetId === INPUT_IDS.HEIGHT) {
+            const w = getValue(INPUT_IDS.WIDTH);
+            const h = getValue(INPUT_IDS.HEIGHT);
+            if (w > 0) selectedElement.style.width = w + '%';
+            if (h > 0) selectedElement.style.height = h + '%';
+        } 
+        if (targetId === INPUT_IDS.X || targetId === INPUT_IDS.Y) {
+            const x = getValue(INPUT_IDS.X);
+            const y = getValue(INPUT_IDS.Y);
+            selectedElement.style.left = x + '%';
+            selectedElement.style.top = y + '%';
+        }
+    }
+    
+    function updateFormSizeOnNativeResize(mutationsList, observer) {
+        if (selectedElement) {
+            const styleChanged = mutationsList.some(mutation => 
+                mutation.target === selectedElement && mutation.attributeName === 'style'
+            );
+            if (styleChanged && !isDragging) {
+                setTimeout(() => updateFormPositionAndSize(selectedElement), 0);
+            }
+        }
+    }
+
+// --- FUNÇÃO INIT (ATUALIZADA) ---
+
+function init() {
+    dbAnnotations.forEach(data => {
+        createAnnotationElement(data);
+    });
+    
+    // NOVO: Evento para pegar a duração do vídeo e renderizar a timeline
+    video.addEventListener('loadedmetadata', () => {
+        videoDuration = video.duration;
+        renderTimelineAnnotations(); 
+    });
+    
+    wrapper.addEventListener('mousedown', (e) => {
+        if (e.target.id === 'videoWrapper' || e.target.id === 'mainVideo') {
+            resetForm();
+        }
+    });
+
+    const observer = new MutationObserver(updateFormSizeOnNativeResize);
+    observer.observe(wrapper, { attributes: true, subtree: true });
+
+    document.getElementById(INPUT_IDS.WIDTH).addEventListener('input', updateVisualsFromInput);
+    document.getElementById(INPUT_IDS.HEIGHT).addEventListener('input', updateVisualsFromInput);
+    document.getElementById(INPUT_IDS.X).addEventListener('input', updateVisualsFromInput);
+    document.getElementById(INPUT_IDS.Y).addEventListener('input', updateVisualsFromInput);
+    
+    document.getElementById('annoFontSize').addEventListener('input', updateFontSize);
+    
+    // --- LISTENERS MODIFICADOS PARA ATUALIZAÇÃO IMEDIATA DA TIMELINE ---
+    
+    document.getElementById('startMin').addEventListener('input', () => { 
+        if(selectedElement) {
+            updateAnnotationDatasetTime(); // 1. Atualiza o dataset
+            renderTimelineAnnotations();   // 2. Redesenha a timeline
+        }
+    });
+    document.getElementById('startSec').addEventListener('input', () => { 
+        if(selectedElement) {
+            updateAnnotationDatasetTime(); // 1. Atualiza o dataset
+            renderTimelineAnnotations();   // 2. Redesenha a timeline
+        }
+    });
+    document.getElementById('endMin').addEventListener('input', () => { 
+        if(selectedElement) {
+            updateAnnotationDatasetTime(); // 1. Atualiza o dataset
+            renderTimelineAnnotations();   // 2. Redesenha a timeline
+        }
+    });
+    document.getElementById('endSec').addEventListener('input', () => { 
+        if(selectedElement) {
+            updateAnnotationDatasetTime(); // 1. Atualiza o dataset
+            renderTimelineAnnotations();   // 2. Redesenha a timeline
+        }
+    });
+    
+    // Listener de Texto: Atualiza o texto do elemento na tela E redesenha a timeline
+    document.getElementById('annoText').addEventListener('input', (e) => { 
+        if(selectedElement) {
+            selectedElement.innerText = e.target.value; 
+            renderTimelineAnnotations(); 
+        }
+    });
+    
+    // Listener de Tipo: Atualiza o tipo (classe/cor) E redesenha a timeline
+    document.getElementById('annoType').addEventListener('change', (e) => { 
+        if(selectedElement) {
+            const oldType = selectedElement.dataset.type;
+            selectedElement.classList.remove(`annotation-${oldType}`);
+            selectedElement.classList.add(`annotation-${e.target.value}`);
+            selectedElement.dataset.type = e.target.value;
+            
+            // Reaplica a cor para considerar as regras de 'title'/'spotlight'
+            applyColorToElement(selectedElement, document.getElementById('annoColor').value);
+            
+            renderTimelineAnnotations(); 
+        }
+    });
+}
+
+    function createAnnotationElement(data) {
+        const el = document.createElement('div');
+        // Garante que o elemento tenha um ID (temporário ou do DB)
+        el.id = data.id ? `anno-${data.id}` : `temp-anno-${Date.now()}-${Math.floor(Math.random() * 1000)}`; 
+        
+        el.className = `editable-annotation annotation-${data.type}`;
+        el.innerText = data.text_content;
+        
+        el.style.left = data.x_pos + '%';
+        el.style.top = data.y_pos + '%';
+        el.style.width = data.width + '%';
+        el.style.height = data.height + '%';
+        
+        el.style.fontSize = data.font_size || '14px'; 
+
+        el.dataset.id = data.id || '';
+        el.dataset.start = data.start_time_sec;
+        el.dataset.end = data.end_time_sec;
+        el.dataset.link = data.link_url || '';
+        el.dataset.type = data.type;
+        el.dataset.color = data.color || '#000000'; 
+        el.dataset.fontSize = data.font_size || '14px';
+
+        applyColorToElement(el, el.dataset.color);
+
+        wrapper.appendChild(el);
+        
+        if (!data.id) selectAnnotation(el); 
+        
+        // NOVO: Renderiza a timeline para incluir a nova anotação
+        if (videoDuration > 0) renderTimelineAnnotations();
+    }
+
+    function selectAnnotation(el) {
+        if (selectedElement) selectedElement.classList.remove('is-selected');
+        
+        selectedElement = el;
+        selectedElement.classList.add('is-selected');
+
+        noSelMsg.style.display = 'none';
+        form.style.display = 'block';
+
+        document.getElementById('annoId').value = el.dataset.id;
+        document.getElementById('annoText').value = el.innerText;
+        document.getElementById('annoType').value = el.dataset.type;
+        document.getElementById('annoLink').value = el.dataset.link;
+        
+        const currentSize = parseFloat(el.dataset.fontSize) || 14;
+        document.getElementById('annoFontSize').value = currentSize;
+
+        updatePaletteUI(el.dataset.color);
+
+        const start = secondsToTime(el.dataset.start);
+        const end = secondsToTime(el.dataset.end);
+        document.getElementById('startMin').value = start.min;
+        document.getElementById('startSec').value = start.sec;
+        document.getElementById('endMin').value = end.min;
+        document.getElementById('endSec').value = end.sec;
+
+        updateFormPositionAndSize(el);
+        highlightTimelineBar(el); // NOVO: Destaca a barra correspondente
+    }
+
+    document.getElementById('annoText').addEventListener('input', (e) => {
+        if (selectedElement) selectedElement.innerText = e.target.value;
+    });
+
+    document.getElementById('annoType').addEventListener('change', (e) => {
+        if (selectedElement) {
+            const oldType = selectedElement.dataset.type;
+            selectedElement.classList.remove(`annotation-${oldType}`);
+            selectedElement.classList.add(`annotation-${e.target.value}`);
+            selectedElement.dataset.type = e.target.value;
+            
+            applyColorToElement(selectedElement, document.getElementById('annoColor').value);
+        }
+    });
+
+    function createNewAnnotation() {
+        const currentTime = video.currentTime;
+        
+        const newData = {
+            id: '', 
+            text_content: 'Novo Texto',
+            type: 'note',
+            x_pos: 35, 
+            y_pos: 35,
+            width: 30,
+            height: 10,
+            start_time_sec: currentTime,
+            end_time_sec: currentTime + 5,
+            link_url: '',
+            color: '#000000',
+            font_size: '14px'
+        };
+        
+        createAnnotationElement(newData);
+    }
+
+    async function saveData() {
+        if (!selectedElement) return;
+
+        const x_pos = parseFloat(document.getElementById(INPUT_IDS.X).value);
+        const y_pos = parseFloat(document.getElementById(INPUT_IDS.Y).value);
+        const width = parseFloat(document.getElementById(INPUT_IDS.WIDTH).value);
+        const height = parseFloat(document.getElementById(INPUT_IDS.HEIGHT).value);
+
+        const startTime = timeToSeconds(document.getElementById('startMin').value, document.getElementById('startSec').value);
+        const endTime = timeToSeconds(document.getElementById('endMin').value, document.getElementById('endSec').value);
+
+        const fontSizeValue = document.getElementById('annoFontSize').value;
+        const finalFontSize = parseFloat(fontSizeValue) > 0 ? parseFloat(fontSizeValue) + 'px' : '14px';
+
+        selectedElement.dataset.start = startTime;
+        selectedElement.dataset.end = endTime;
+        selectedElement.dataset.link = document.getElementById('annoLink').value;
+        selectedElement.dataset.color = document.getElementById('annoColor').value;
+        selectedElement.dataset.fontSize = finalFontSize;
+
+        const payload = {
+            action: 'save',
+            id: document.getElementById('annoId').value,
+            video_id: videoId,
+            type: document.getElementById('annoType').value,
+            text_content: document.getElementById('annoText').value,
+            start_time_sec: startTime,
+            end_time_sec: endTime,
+            x_pos: x_pos.toFixed(2),
+            y_pos: y_pos.toFixed(2),
+            width: width.toFixed(2),
+            height: height.toFixed(2),
+            link_url: document.getElementById('annoLink').value,
+            color: document.getElementById('annoColor').value,
+            font_size: finalFontSize
+        };
+
+        const btn = document.querySelector('.btn-save');
+        btn.innerText = "Salvando...";
+
+        try {
+            const response = await fetch('annotation_editor.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                alert('Salvo com sucesso!');
+                if (result.id) {
+                    // Atualiza o ID do elemento e dataset após salvar no DB
+                    selectedElement.dataset.id = result.id;
+                    selectedElement.id = `anno-${result.id}`;
+                    document.getElementById('annoId').value = result.id;
+                }
+                renderTimelineAnnotations(); // NOVO: Re-renderiza a timeline
+            } else {
+                alert('Erro ao salvar: ' + result.message);
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Erro de conexão.');
+        } finally {
+            btn.innerText = "Salvar alterações"; // Ajustado para o texto correto
+        }
+    }
+
+    async function deleteData() {
+        if (!selectedElement) return;
+        const id = document.getElementById('annoId').value;
+
+        if (!id) {
+            selectedElement.remove();
+            resetForm();
+            renderTimelineAnnotations(); // NOVO: Re-renderiza a timeline
+            return;
+        }
+
+        if(!confirm("Tem certeza que deseja apagar?")) return;
+
+        try {
+            const response = await fetch('annotation_editor.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'delete', id: id })
+            });
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                selectedElement.remove();
+                resetForm();
+                renderTimelineAnnotations(); // NOVO: Re-renderiza a timeline
+            } else {
+                alert('Erro ao deletar: ' + result.message);
+            }
+        } catch (err) {
+            alert('Erro de conexão.');
+        }
+    }
+
+    // DRAG & DROP
+    wrapper.addEventListener('mousedown', (e) => {
+        if (e.target.classList.contains('editable-annotation')) {
+            selectAnnotation(e.target); 
+            
+            if (e.target.style.cursor !== 'se-resize' && e.target.style.cursor !== 'sw-resize' && e.target.style.cursor !== 's-resize') {
+                isDragging = true;
+                e.preventDefault(); 
+            } else {
+                isDragging = false; 
+                return;
+            }
+            
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            initialLeftPercent = parseFloat(selectedElement.style.left);
+            initialTopPercent = parseFloat(selectedElement.style.top);
+        }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (isDragging && selectedElement) {
+            e.preventDefault();
+            const parentRect = wrapper.getBoundingClientRect();
+            
+            const deltaX = e.clientX - dragStartX;
+            const deltaY = e.clientY - dragStartY;
+            const deltaXPercent = (deltaX / parentRect.width) * 100;
+            const deltaYPercent = (deltaY / parentRect.height) * 100;
+            
+            let newLeft = initialLeftPercent + deltaXPercent;
+            let newTop = initialTopPercent + deltaYPercent;
+
+            const currentWidth = parseFloat(selectedElement.style.width);
+            const currentHeight = parseFloat(selectedElement.style.height);
+            
+            newLeft = Math.max(0, Math.min(newLeft, 100 - currentWidth));
+            newTop = Math.max(0, Math.min(newTop, 100 - currentHeight));
+            
+            selectedElement.style.left = newLeft + '%';
+            selectedElement.style.top = newTop + '%';
+
+            document.getElementById(INPUT_IDS.X).value = newLeft.toFixed(2); // <--- O PROBLEMA
+            document.getElementById(INPUT_IDS.Y).value = newTop.toFixed(2);  // <--- O PROBLEMA
+
+        }
+    });
+
+    window.addEventListener('mouseup', () => {
+        isDragging = false;
+        if (selectedElement) {
+            updateFormPositionAndSize(selectedElement);
+        }
+    });
+    
+    // NOVO: Atualiza a posição da playhead e o tempo
+    video.addEventListener('timeupdate', () => {
+        const t = secondsToTime(video.currentTime);
+        document.getElementById('currentTime').innerText = `${t.min}:${String(t.sec).padStart(5, '0')}`;
+        
+        if (videoDuration > 0) {
+            const positionPercent = (video.currentTime / videoDuration) * 100;
+            playhead.style.left = `${positionPercent}%`;
+        }
+    });
+
+    function updateAnnotationDatasetTime() {
+        if (!selectedElement) return;
+
+        const startTime = timeToSeconds(document.getElementById('startMin').value, document.getElementById('startSec').value);
+        const endTime = timeToSeconds(document.getElementById('endMin').value, document.getElementById('endSec').value);
+        
+        selectedElement.dataset.start = startTime;
+        selectedElement.dataset.end = endTime;
+    }
+
+    window.addEventListener('mousemove', (e) => {
+        if (isDragging && selectedElement) {
+            e.preventDefault();
+            const parentRect = wrapper.getBoundingClientRect();
+            
+            const deltaX = e.clientX - dragStartX;
+            const deltaY = e.clientY - dragStartY;
+            const deltaXPercent = (deltaX / parentRect.width) * 100;
+            const deltaYPercent = (deltaY / parentRect.height) * 100;
+            
+            let newLeft = initialLeftPercent + deltaXPercent;
+            let newTop = initialTopPercent + deltaYPercent;
+
+            const currentWidth = parseFloat(selectedElement.style.width);
+            const currentHeight = parseFloat(selectedElement.style.height);
+            
+            // Garante que não ultrapasse os limites (0% a 100% menos o tamanho)
+            newLeft = Math.max(0, Math.min(newLeft, 100 - currentWidth));
+            newTop = Math.max(0, Math.min(newTop, 100 - currentHeight));
+            
+            selectedElement.style.left = newLeft + '%';
+            selectedElement.style.top = newTop + '%';
+
+            // ESTA PARTE JÁ ATUALIZA OS INPUTS EM TEMPO REAL:
+            document.getElementById(INPUT_IDS.X).value = newLeft.toFixed(2); 
+            document.getElementById(INPUT_IDS.Y).value = newTop.toFixed(2); 
+
+        }
+    });
+
+    window.addEventListener('mouseup', () => {
+        isDragging = false;
+        if (selectedElement) {
+            // Esta chamada garante que a posição final seja refletida no formulário.
+            updateFormPositionAndSize(selectedElement);
+        }
+    });
+    
+    init();
+</script>
+</body>
+</html>

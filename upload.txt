@@ -1,0 +1,115 @@
+            <div id="upload-tab" style="display: <?php echo ($active_tab == 'upload-tab' ? 'block' : 'none'); ?>;">
+                <h1>Enviar Vídeo</h1>
+                
+                <form method="POST" enctype="multipart/form-data" id="uploadForm" action="dashboard.php?tab=upload-tab" onsubmit="return validateUpload()">
+                    
+                    <input type="hidden" name="upload_video" value="1">
+                    
+                    <div class="upload-area" id="dropArea">
+                        <div class="upload-icon"></div>
+                        <div class="upload-text">
+                            <h2>Selecione arquivos do seu computador</h2>
+                            <p>Arraste e solte seu arquivo de vídeo para fazer o upload.</p>
+                            <button type="button" class="primary-btn-2012" onclick="document.getElementById('video_file_real').click()">
+                                Enviar Vídeo
+                            </button>
+                            <input type="file" name="video_file" id="video_file_real" accept="video/*" required>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-container-2013" id="simulatedProgressContainer">
+                        <div class="progress-bar-2013" id="simulatedProgressBar">
+                            <span id="progressText">0%</span>
+                        </div>
+                    </div>
+                    
+                    <div class="video-preview-container" id="videoPreviewContainer" style="display: none;">
+                        <div class="video-player-frame">
+                            <video id="videoPreviewPlayer" controls style="max-width: 100%; height: 100%;">
+                                Seu navegador não suporta a tag de vídeo.
+                            </video>
+                        </div>
+                        <div class="video-info-preview">
+                            <h3>Pré-visualização do Vídeo</h3>
+                            <p>Nome do Arquivo: <strong id="previewFileName">N/A</strong></p>
+                            <p>Duração: <strong id="previewDuration">00:00:00</strong></p>
+                            <p style="color: #DD4B39; font-weight: bold; margin-top: 10px;">Clique na imagem de miniatura abaixo para fazer upload.</p>
+                        </div>
+                    </div>
+
+                    <div class="upload-tabs-header" style="margin-top: 20px;">
+                        <button type="button" class="upload-tab-btn active-tab-inner" onclick="showUploadTab('basic-settings')">Informações Básicas</button>
+                        <button type="button" class="upload-tab-btn" onclick="showUploadTab('advanced-settings')">Configurações Avançadas</button>
+                    </div>
+
+                    <div class="video-details-form">
+                        
+                        <div id="basic-settings" class="upload-tab-content">
+                            <label for="title">Título</label>
+                            <input type="text" id="title" name="title" required maxlength="100" autocorrect="off" spellcheck="false" style="background: white;">
+                            
+                            <label for="description">Descrição</label>
+                            <textarea id="description" name="description" rows="5" maxlength="5000" required style="background: white;"></textarea>
+                            
+                            <label for="thumbnail_file">Miniatura</label>
+                            <div class="file-input-group">
+                                <input type="file" name="thumbnail_file" id="thumbnail_file" accept="image/jpeg, image/png" required>
+                            </div>
+                            
+                            <div class="thumbnail-preview-area" id="thumbnailPreviewArea" style="margin-top: 15px; display: none; text-align: center; border: 1px solid #ddd; padding: 10px; margin-right: 750px;">
+                                <p style="margin-top: -5px; margin-bottom: 5px; font-weight: bold;">Pré-visualização da Miniatura:</p>
+                                <img id="thumbnailPreviewImage" src="" alt="Thumbnail Preview"/>
+                            </div>
+
+                            <label for="duration">Duração</label>
+                            <input type="text" id="video_duration_input" name="duration" pattern="\d{2}:\d{2}:\d{2}" maxlength="8" autocomplete="off" style="background: white;">
+
+                            <label for="visibility">Visibilidade</label>
+                            <select id="visibility" name="visibility" required style="width: 30%;">
+                                <option value="public">Público</option>
+                                <option value="unlisted">Não Listado</option>
+                                <option value="private">Privado</option>
+                            </select>
+                        </div>
+
+                        <div id="advanced-settings" class="upload-tab-content" style="display: none;">
+                            <h2>Configurações de Distribuição</h2>
+                            
+                            <label for="category">Categoria</label>
+                            <select id="category" name="category">
+                                <option value="" disabled selected hidden>Selecione uma categoria</option>
+                                <option value="none">Nenhuma</option>
+                                <option value="ytp">YTP</option>
+                                <option value="mv">YTPMV</option>
+                                <option value="gaming">Jogos</option>
+                                <option value="music">Música</option>
+                                <option value="comedy">Comédia</option>
+                            </select>
+                            
+                            <label for="tags">Tags</label>
+                            <input type="text" id="tags" name="tags" style="background: white;">
+                            
+                            <label for="comments">Opções de Comentários</label>
+                            <select id="comments" name="comments">
+                                <option value="allow">Permitir todos os comentários</option>
+                                <option value="approve">Comentários sujeitos à aprovação</option>
+                                <option value="disable">Desativar comentários</option>
+                            </select>
+                            
+                        </div>
+                        
+                        <div style="overflow: auto; text-align: right; border-top: 1px solid #E5E5E5; padding-top: 15px; margin-top: 15px;">
+                            <button type="submit" class="primary-btn-2012 submit-upload-btn">Concluir</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+
+
+id, user_id, title, description, video_path, thumbnail_path, duration, visibility, upload_date, views
+
+
+The Duck Song (Forrestfire101)
+
+musica feita pelo usuario forrestfire101.
